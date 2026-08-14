@@ -1,38 +1,22 @@
 // src/components/CountrySelector.jsx
 
-import React, { useEffect, useState } from "react";
+import React from "react";
 import Select from "react-select";
-import axios from "axios";
 
-export default function CountrySelector({ onChange }) {
-  const [options, setOptions] = useState([]);
-
-  useEffect(() => {
-    axios
-      .get("/countries") // Assumes "proxy" is set in package.json
-      .then((res) => {
-        const opts = res.data.map((country) => ({
-          value: country.id,
-          label: country.name,
-        }));
-        setOptions(opts);
-      })
-      .catch((err) => {
-        console.error("Failed to fetch countries:", err);
-      });
-  }, []);
-
+export default function CountrySelector({ options, value, onChange, isLoading = false }) {
   return (
     <Select
-      options={options}           // Country options to display
-      onChange={onChange}         // Handler to update selected country
+      options={options}
+      value={value}
+      onChange={onChange}
+      isLoading={isLoading}
       placeholder="Select a country"
-      isClearable                 // Allows user to clear the selection
+      isClearable
       aria-label="Country selector"
       styles={{
         container: (base) => ({
           ...base,
-          width: 300,             // Optional: set fixed width
+          width: 300,
         }),
       }}
     />
