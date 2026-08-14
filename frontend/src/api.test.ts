@@ -18,8 +18,11 @@ vi.mock('axios', () => ({
 
 import {
   fetchCountries,
+  fetchComparison,
   fetchData,
   fetchForecast,
+  fetchForecastEvaluation,
+  fetchIndicators,
   getApiErrorMessage,
 } from './api';
 
@@ -72,6 +75,23 @@ describe('API client', () => {
     });
   });
 
+  it('requests a bounded indicator search', async () => {
+    getMock.mockResolvedValue({ data: [{ id: 'NY.GDP.MKTP.CD', name: 'GDP' }] });
+    await fetchIndicators('gdp');
+    expect(getMock).toHaveBeenCalledWith('/indicators', {
+      params: { search: 'gdp', limit: 50, offset: 0 },
+      signal: undefined,
+    });
+  });
+
+  it('serializes repeated country parameters for comparison', async () => {
+    getMock.mockResolvedValue({ data: [] });
+    await fetchComparison(['BRA', 'USA'], 'GDP', 2000, 2020);
+    const request = getMock.mock.calls[0][1];
+    expect(request.params.getAll('countries')).toEqual(['BRA', 'USA']);
+    expect(request.params.get('indicator')).toBe('GDP');
+  });
+
   it('sends the selected fitting period to the forecast endpoint', async () => {
     getMock.mockResolvedValue({ data: [] });
 
@@ -84,6 +104,21 @@ describe('API client', () => {
         start: 2000,
         end: 2022,
         years_ahead: 5,
+      },
+      signal: undefined,
+    });
+  });
+
+  it('requests typed forecast evaluation metadata', async () => {
+    getMock.mockResolvedValue({ data: { forecast: [] } });
+    await fetchForecastEvaluation('BRA', 'GDP', 2000, 2022, 3);
+    expect(getMock).toHaveBeenCalledWith('/forecast/evaluate', {
+      params: {
+        country: 'BRA',
+        indicator: 'GDP',
+        start: 2000,
+        end: 2022,
+        years_ahead: 3,
       },
       signal: undefined,
     });
