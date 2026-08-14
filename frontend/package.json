@@ -7,6 +7,7 @@
     "dev": "vite",
     "start": "vite",
     "build": "tsc --noEmit && vite build",
+    "lint": "oxlint src --react-plugin --jsx-a11y-plugin --vitest-plugin -D correctness -D suspicious -A react-in-jsx-scope -A prefer-tag-over-role -A no-array-sort -A require-mock-type-parameters --deny-warnings",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest"
@@ -33,6 +34,7 @@
     "@vitejs/plugin-react": "^6.0.5",
     "@vitest/coverage-v8": "4.1.10",
     "jsdom": "^29.1.1",
+    "oxlint": "^1.78.0",
     "typescript": "^7.0.2",
     "vite": "^8.2.1",
     "vitest": "^4.1.10"

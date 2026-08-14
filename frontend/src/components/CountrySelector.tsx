@@ -16,6 +16,7 @@ export default function CountrySelector({
 }: CountrySelectorProps) {
   return (
     <Select<CountryOption, true>
+      inputId="country-selector"
       options={options}
       value={value}
       onChange={selected => onChange([...selected])}

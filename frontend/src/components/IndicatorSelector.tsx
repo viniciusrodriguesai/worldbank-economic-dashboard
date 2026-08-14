@@ -18,13 +18,14 @@ export default function IndicatorSelector({
 }: IndicatorSelectorProps) {
   return (
     <Select<IndicatorOption>
+      inputId="indicator-selector"
       options={options}
       value={value}
       onChange={onChange}
       isLoading={isLoading}
       placeholder="Select an indicator"
       isClearable
-      onInputChange={value => onSearch?.(value)}
+      onInputChange={inputValue => onSearch?.(inputValue)}
       aria-label="Economic indicator"
       classNamePrefix="select"
     />

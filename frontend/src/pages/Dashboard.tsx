@@ -187,12 +187,12 @@ export default function Dashboard() {
             <span className="selection-count">{selectedCountries.length}/5 countries</span>
           </div>
           <div className="control-grid">
-            <label className="field field-wide"><span>Countries</span>
+            <div className="field field-wide"><label htmlFor="country-selector">Countries</label>
               <CountrySelector options={countries} value={selectedCountries} onChange={setSelectedCountries} isLoading={metadataLoading} />
-            </label>
-            <label className="field field-wide"><span>Indicator</span>
+            </div>
+            <div className="field field-wide"><label htmlFor="indicator-selector">Indicator</label>
               <IndicatorSelector options={indicators} value={indicator} onChange={setIndicator} onSearch={setIndicatorSearch} isLoading={metadataLoading} />
-            </label>
+            </div>
             <label className="field"><span>Start year</span><input aria-label="Start year" type="number" min="1900" max={currentYear + 1} value={range.start} onChange={(event: ChangeEvent<HTMLInputElement>) => setRange(current => ({ ...current, start: Number(event.target.value) }))} /></label>
             <label className="field"><span>End year</span><input aria-label="End year" type="number" min="1900" max={currentYear + 1} value={range.end} onChange={(event: ChangeEvent<HTMLInputElement>) => setRange(current => ({ ...current, end: Number(event.target.value) }))} /></label>
             <label className="field"><span>Forecast horizon</span><select aria-label="Forecast horizon" value={horizon} onChange={event => setHorizon(Number(event.target.value))}>{horizons.map(value => <option key={value} value={value}>{value} year{value === 1 ? '' : 's'}</option>)}</select></label>
