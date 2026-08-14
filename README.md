@@ -1,161 +1,186 @@
 # World Bank Economic Dashboard
 
-An **interactive** and **responsive** data visualization dashboard for exploring key macroeconomic indicators from the World Bank Open Data API. The dashboard allows researchers, policymakers, students, and data enthusiasts to visualize time series trends, compare countries and regions, and export data for further analysis.
+A full-stack dashboard for exploring live World Bank economic indicators, viewing country locations, exporting historical data, and generating short-term ARIMA forecasts.
 
----
+## What is implemented
 
-## 🚀 Features
+- Searchable country and indicator selectors.
+- Historical time-series charts with a configurable year range.
+- A country map that uses World Bank ISO2 metadata.
+- Five-year ARIMA forecasts fitted to the selected period.
+- CSV export with Excel-compatible UTF-8 encoding.
+- Request cancellation, timeout handling, and readable API errors.
+- Typed API responses with Pydantic and a strict TypeScript frontend.
+- Automated backend and frontend tests.
 
-* **Time Series Visualization**: Explore indicators such as GDP, inflation, unemployment, and more.
-* **Comparative Analysis**: Compare multiple countries or regions side-by-side.
-* **Interactive Mapping**: View country-level data on a dynamic, zoomable world map.
-* **Forecasting**: Preview short-term forecasts powered by ARIMA or Facebook Prophet models.
-* **Data Export**: Download filtered datasets in CSV format for offline analysis.
-* **Responsive Design**: Accessible on desktop, tablet, and mobile devices.
+The application currently analyzes one country and one indicator at a time. It does not implement Prophet, regional comparison views, or local database persistence.
 
----
+## Technology
 
-## 🔧 Tech Stack
+### Backend
 
-**Backend**
+- Python 3.11
+- FastAPI and Pydantic
+- Pandas
+- Statsmodels ARIMA
+- Requests
+- Pytest
 
-* **FastAPI**: High-performance API framework for Python.
-* **Pandas**: Data ingestion and preprocessing.
-* **SQLite** (optional): Local persistence of cleaned datasets.
-* **ARIMA & Prophet**: Time series forecasting libraries.
+### Frontend
 
-**Frontend**
+- TypeScript
+- React 19
+- Vite 8
+- Plotly basic distribution
+- React Leaflet
+- Axios
+- Vitest and Testing Library
 
-* **React**: Component-based UI library.
-* **Plotly.js**: Interactive charting library.
-* **Leaflet.js**: Map rendering with tile layers.
-* **Tailwind CSS**: Utility-first styling framework.
+## Project structure
 
----
-
-## 📂 Project Structure
-
-```
+```text
 worldbank-economic-dashboard/
-├── backend/
-│   ├── app.py             # FastAPI application entrypoint
-│   ├── data_loader.py     # ETL scripts: fetch & clean World Bank data
-│   ├── models/            # Forecasting model definitions
-│   └── requirements.txt   # Python dependencies
-├── frontend/
-│   ├── public/
-│   ├── src/
-│   │   ├── components/    # Reusable React components (charts, maps, filters)
-│   │   ├── pages/         # Page views (Dashboard, Comparison, Forecast)
-│   │   └── App.jsx        # Main application component
-│   └── package.json       # Frontend dependencies
-├── database/
-│   └── dataset.db         # (Optional) Preloaded SQLite database
-├── .gitignore
-├── LICENSE
-└── README.md
+|-- backend/
+|   |-- app.py                  # FastAPI routes, CORS, and metadata cache
+|   |-- data_loader.py          # World Bank client and ARIMA forecasting
+|   |-- models.py               # Pydantic response contracts
+|   |-- requirements.txt        # Runtime dependencies
+|   |-- requirements-dev.txt    # Runtime and test dependencies
+|   `-- tests/                  # Backend API tests
+|-- frontend/
+|   |-- src/
+|   |   |-- components/         # Typed selectors, charts, map, and CSV export
+|   |   |-- pages/              # Dashboard and component tests
+|   |   |-- api.ts              # Typed HTTP client
+|   |   `-- types.ts            # Shared frontend contracts
+|   |-- package.json
+|   |-- tsconfig.json
+|   `-- vite.config.ts
+|-- .env.example
+|-- pyproject.toml
+`-- README.md
 ```
 
----
+## Prerequisites
 
-## 📥 Installation & Setup
+- Python 3.11 or newer.
+- Node.js 22.13 or newer and npm.
+- Git.
+- Internet access while the application is running, because indicator data comes from the World Bank API.
 
-### Prerequisites
+## Installation
 
-* **Python 3.8+**
-* **Node.js 14+ & npm**
-* **Git**
+Clone the repository:
 
-### 1. Clone the repository
-
-```bash
-git clone https://github.com/Vinicius-Mangueira/worldbank-economic-dashboard.git
+```powershell
+git clone https://github.com/viniciusrodriguesai/worldbank-economic-dashboard.git
 cd worldbank-economic-dashboard
 ```
 
-### 2. Backend Setup
+### Backend
 
-```bash
-cd backend
-python -m venv venv
-source venv/bin/activate       # On Windows: venv\\Scripts\\activate
-pip install -r requirements.txt
+Create an isolated environment from the repository root.
+
+Windows PowerShell:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r backend\requirements-dev.txt
+uvicorn backend.app:app --reload --port 8000
 ```
 
-1. **Configure Environment**: Copy `.env.example` to `.env` and set any API keys (if required).
-2. **Data Ingestion**: Run the data loader to fetch and store indicators:
-
-   ```bash
-   python data_loader.py
-   ```
-3. **Start the API Server**:
-
-   ```bash
-   uvicorn app:app --reload --host 0.0.0.0 --port 8000
-   ```
-
-### 3. Frontend Setup
+macOS or Linux:
 
 ```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r backend/requirements-dev.txt
+uvicorn backend.app:app --reload --port 8000
+```
+
+The API and interactive OpenAPI documentation are available at:
+
+- API: http://127.0.0.1:8000
+- OpenAPI UI: http://127.0.0.1:8000/docs
+
+Use `backend/requirements.txt` instead when only runtime dependencies are needed.
+
+### Frontend
+
+Open another terminal:
+
+```powershell
 cd frontend
 npm install
-npm run start
+npm run dev
 ```
 
-The dashboard will be available at `http://localhost:3000` and the API at `http://localhost:8000`.
+The Vite development server runs at http://localhost:5173 and proxies `/api` requests to the backend at `http://127.0.0.1:8000`.
 
----
+## Configuration
 
-## 💡 Usage
+Copy the example files only when you need to override their defaults.
 
-1. **Navigate** to the Dashboard page to see global trends.
-2. **Filter** by indicator (e.g., `GDP`), time range, and countries.
-3. **Compare** multiple selections side-by-side in the Comparison view.
-4. **Switch** to Forecast view to generate short-term projections.
-5. **Export** any filtered dataset using the `Download CSV` button.
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `WB_API_BASE` | `https://api.worldbank.org/v2` | World Bank REST API base URL |
+| `CORS_ORIGINS` | `http://localhost:3000,http://localhost:5173` | Comma-separated FastAPI origin allowlist |
+| `VITE_API_BASE_URL` | `/api` | Frontend API base URL |
 
----
+For a deployed frontend, set `VITE_API_BASE_URL` to the public backend URL before running the production build.
 
-## 🗺️ Data Sources
+## API
 
-* **World Bank Open Data API**: [https://data.worldbank.org](https://data.worldbank.org)
-* All data is fetched in real time via REST API endpoints.
-* See `data_loader.py` for details on endpoints and data cleaning steps.
+| Method | Route | Main parameters | Result |
+| --- | --- | --- | --- |
+| GET | `/countries` | none | Cached World Bank country metadata |
+| GET | `/indicators` | none | Cached World Bank indicator metadata |
+| GET | `/data` | `country`, `indicator`, `start`, `end` | Historical observations |
+| GET | `/forecast` | `country`, `indicator`, `start`, `end`, `years_ahead` | Future ARIMA points |
 
+Historical data example:
 
+```bash
+curl "http://127.0.0.1:8000/data?country=BRA&indicator=NY.GDP.MKTP.CD&start=2000&end=2022"
+```
 
-## 🤝 Contributing
+Forecast example:
 
-Contributions are welcome! Please open issues or pull requests for:
+```bash
+curl "http://127.0.0.1:8000/forecast?country=BRA&indicator=NY.GDP.MKTP.CD&start=2000&end=2022&years_ahead=5"
+```
 
-1. Bug reports or feature requests.
-2. Improvements to data processing or visualization.
-3. Documentation enhancements.
+## Validation
 
-Steps to contribute:
+Run backend tests from the repository root:
 
-1. **Fork** the repo.
-2. **Create** a feature branch (`git checkout -b feature/YourFeature`).
-3. **Commit** your changes (`git commit -m 'Add your feature'`).
-4. **Push** to your fork (`git push origin feature/YourFeature`).
-5. **Open** a Pull Request.
+```powershell
+.\.venv\Scripts\python.exe -m pytest
+```
 
-Please adhere to the existing code style and include clear descriptions.
+Run frontend tests and a production build:
 
----
+```powershell
+cd frontend
+npm test
+npm run build
+```
 
-## 📄 License
+The production frontend is generated in `frontend/dist/`. Plotly and Leaflet are loaded as separate lazy chunks so the initial application bundle remains smaller.
 
-This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) file for details.
+## Data and forecasting notes
 
----
+- Data is fetched live over HTTPS from the World Bank API.
+- Country and indicator metadata is cached in memory for one hour.
+- No local SQLite database is required or shipped.
+- ARIMA needs at least ten valid historical observations.
+- Forecasts are statistical estimates and should not be treated as financial or policy advice.
 
-## 📬 Contact
+## License
 
-**Vinícius Mangueira**
-Data Science & AI Student @ UFPB
-Email: [viniciusmangueira04@gmail.com](mailto:viniciusmangueira04@gmail.com)
+Licensed under the MIT License. See [LICENSE](LICENSE).
 
-Feel free to reach out for questions or collaboration!
+## Author
 
-LinkedIn: [https://www.linkedin.com/in/vinicius-mangueira-0b8285224/](https://www.linkedin.com/in/vinicius-mangueira-0b8285224/)
+Vinicius Mangueira - Data Science and Artificial Intelligence student at UFPB.
