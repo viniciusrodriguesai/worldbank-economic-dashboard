@@ -105,9 +105,14 @@ def get_indicator_data_df(country: str, indicator: str, start: int, end: int) ->
     df['value'] = pd.to_numeric(df['value'], errors='coerce')
     df = df.dropna(subset=['year', 'value']).sort_values('year').reset_index(drop=True)
     if df.empty:
-        msg = f"No data found for {country}-{indicator} between years {start}-{end}"
-        logger.error(msg)
-        raise ValueError(msg)
+        logger.info(
+            "No data found for %s-%s between years %d-%d",
+            country,
+            indicator,
+            start,
+            end,
+        )
+        return df
     logger.info("Data for %s - %s from %d to %d: %d records", country, indicator, start, end, len(df))
     return df
 
