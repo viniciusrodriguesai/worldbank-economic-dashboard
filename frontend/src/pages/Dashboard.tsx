@@ -1,5 +1,3 @@
-// src/pages/Dashboard.jsx
-
 import React, { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
 import CountrySelector from '../components/CountrySelector';
@@ -149,7 +147,7 @@ export default function Dashboard() {
 
   return (
     <div style={{ padding: 20 }}>
-      <h1>📊 Economic Dashboard</h1>
+      <h1>Economic Dashboard</h1>
 
       <div style={{ display: 'flex', gap: 16, marginBottom: 20 }}>
         <CountrySelector
@@ -218,7 +216,7 @@ export default function Dashboard() {
       )}
 
       {dataLoading && (
-        <p style={{ fontStyle: 'italic', marginBottom: 20 }}>Carregando dados...</p>
+        <p style={{ fontStyle: 'italic', marginBottom: 20 }}>Loading data...</p>
       )}
 
       <Suspense fallback={<p>Loading chart...</p>}>
