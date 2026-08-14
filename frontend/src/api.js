@@ -45,12 +45,20 @@ export async function fetchData(countryCode, indicatorCode, startYear, endYear) 
  * Fetch forecast data for a given country and indicator.
  * @param {string} countryCode - ISO code of the country.
  * @param {string} indicatorCode - World Bank indicator code.
+ * @param {number} startYear - First year used to fit the model.
+ * @param {number} endYear - Last year used to fit the model.
  * @param {number} yearsAhead - Number of years to forecast.
  * @returns {Promise<Array<{year: number, value: number}>>}
  */
-export async function fetchForecast(countryCode, indicatorCode, yearsAhead) {
+export async function fetchForecast(countryCode, indicatorCode, startYear, endYear, yearsAhead) {
   const res = await apiClient.get('/forecast', {
-    params: { country: countryCode, indicator: indicatorCode, years_ahead: yearsAhead },
+    params: {
+      country: countryCode,
+      indicator: indicatorCode,
+      start: startYear,
+      end: endYear,
+      years_ahead: yearsAhead,
+    },
   });
   return res.data;
 }
