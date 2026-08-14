@@ -20,7 +20,8 @@ not browser input.
 ## Trust boundaries and data flow
 
 1. An untrusted browser loads the static Vite build from a frontend host or CDN.
-2. The browser calls FastAPI through `/countries`, `/indicators`, `/data`, and `/forecast`.
+2. The browser calls FastAPI through `/countries`, `/indicators`, `/data/compare`, and
+   `/forecast/evaluate`.
    Query strings cross the first trust boundary. CORS limits cross-origin browser reads;
    it is not authentication or a server-side rate limit.
 3. FastAPI contacts a configured World Bank HTTPS origin. Country, indicator, range, and
@@ -33,8 +34,11 @@ not browser input.
    bounds, and user agent to that third party. No application credential is sent.
 7. CSV strings cross into spreadsheet software, where leading formula characters can
    change data into executable spreadsheet expressions.
-8. CI downloads actions and packages from GitHub, PyPI, and npm. A read-only workflow token
-   reduces impact but publishers and mutable references remain supply-chain trust inputs.
+8. CI downloads SHA-pinned actions and locked/pinned packages from GitHub, PyPI, and npm.
+   A read-only workflow token reduces impact, while publishers and registries remain trust inputs.
+9. Production traffic crosses the TLS edge into non-root nginx and then the private
+   FastAPI container. Forwarded client IPs, headers, resource limits, and image contents
+   are deployment trust boundaries.
 
 ## Entry points and abuse cases
 
@@ -43,13 +47,15 @@ not browser input.
 | `/countries` | Expired-cache refresh storm or malformed metadata | Locked TTL cache, bounded pages, stale-on-error, safe 503 |
 | `/indicators` | Huge response, expensive filtering, refresh storm | Search/pagination bounds and cached metadata |
 | `/data` | Traversal syntax, Unicode, huge ranges, upstream probing | Anchored code patterns, known metadata, interval bound, safe errors |
-| `/forecast` | Repeated CPU-heavy fits or huge candidate parameters | Server-owned bounded candidates, horizon/range caps, concurrency/rate limits |
+| `/data/compare` | Unbounded fan-out or duplicate country work | One-to-five unique known countries and a shared bounded period |
+| `/forecast/evaluate` | Repeated CPU-heavy fits or huge candidate parameters | Server-owned bounded candidates, horizon/range caps, concurrency/rate limits |
 | CSV export | Formula execution, broken quoting, deceptive filename | Typed serializer, formula neutralization, deterministic columns |
 | CORS | Malicious origin reads browser-accessible API responses | Exact origins, GET only, no credentials, restricted headers |
 | `WB_API_BASE` | Operator points client to unsafe or credential-bearing URL | Trusted configuration, HTTPS validation, redirect/host policy |
 | World Bank response | Malformed JSON/pages, NaN/Inf, duplicates, missing years | Structural and statistical validation before modeling/rendering |
 | Map tiles | Third-party tracking or outage | HTTPS, attribution, optional/non-critical role, documented host policy |
 | GitHub Actions | Action/package compromise or token misuse | SHA pins, least privilege, clean installs, audits, dependency review |
+| Container edge | Direct backend access, root escape, spoofed client IP, or resource exhaustion | Private backend, non-root/read-only containers, dropped capabilities, trusted proxy chain, throttling and limits |
 
 ## Assets-to-controls summary
 

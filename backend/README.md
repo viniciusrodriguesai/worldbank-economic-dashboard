@@ -22,8 +22,10 @@ See the [root documentation](../README.md) for full-stack setup, architecture, d
 | --- | --- |
 | `app.py` | FastAPI construction, lifespan, CORS, cache coordination, routes, and HTTP errors |
 | `core/cache.py` | Thread-safe TTL caching, bounded stale fallback, and refresh backoff |
-| `data_loader.py` | World Bank session, pagination, DataFrame normalization, and ARIMA fitting |
+| `data_loader.py` | Validated World Bank session, pagination, normalization, and legacy forecast compatibility |
+| `exceptions.py` | Application exception taxonomy independent from HTTP responses |
 | `models.py` | Pydantic response contracts |
+| `services/forecasting.py` | Annual preparation, temporal evaluation, baselines, bounded ARIMA selection, metrics, and bounds |
 | `requirements.txt` | Minimal production dependencies |
 | `requirements-dev.txt` | Production dependencies plus backend test tools |
 | `tests/` | Deterministic API contract tests |
@@ -45,26 +47,29 @@ sequenceDiagram
     Cache-->>API: Normalized records
     API-->>UI: Pydantic-validated JSON
 
-    UI->>API: GET /data
+    UI->>API: GET /data/compare
     API->>WB: Country indicator request
     WB-->>API: Annual observations
     API-->>UI: Sorted historical points
 
-    UI->>API: GET /forecast
+    UI->>API: GET /forecast/evaluate
     API->>WB: Historical observations
-    API->>ARIMA: Fit selected period
-    ARIMA-->>API: Future values
-    API-->>UI: Future points only
+    API->>ARIMA: Evaluate baselines and bounded candidates
+    ARIMA-->>API: Metrics, future values, and bounds
+    API-->>UI: History, forecast, evaluation, and warnings
 ```
 
 ## API contracts
 
 | Route | Response model | Notes |
 | --- | --- | --- |
+| `GET /health` | `dict[str, str]` | Liveness without an upstream dependency |
 | `GET /countries` | `list[Country]` | Includes ISO3 `id` and `iso2Code` |
-| `GET /indicators` | `list[Indicator]` | World Bank indicator ID and name |
+| `GET /indicators` | `list[Indicator]` | Bounded search, limit, and offset |
 | `GET /data` | `list[IndicatorPoint]` | Historical values between `start` and `end` |
-| `GET /forecast` | `list[IndicatorPoint]` | Future ARIMA points only |
+| `GET /data/compare` | `list[IndicatorPoint]` | One indicator for one-to-five unique countries |
+| `GET /forecast` | `list[IndicatorPoint]` | Backward-compatible future-only response |
+| `GET /forecast/evaluate` | `ForecastResponse` | Temporal metrics, baseline comparison, missing years, warnings, and bounds |
 
 Pydantic models live in `models.py`. Route implementations must use explicit response models rather than untyped dictionaries.
 

@@ -2,7 +2,8 @@
 
 Audit date: 2026-08-14  
 Baseline revision: `d2fb35f`  
-Working branch: `codex/security-production-upgrade`
+Final review branch: `main`
+Implementation reviewed through: `256979b`
 
 ## Reviewed evidence
 
@@ -40,8 +41,10 @@ After dependency commit `25821ae`, pip-audit reported no known vulnerabilities a
 - **Impact:** Opening a downloaded CSV can invoke spreadsheet functions.
 - **Remediation:** Use a typed deterministic serializer that prefixes dangerous text,
   quotes CSV correctly, and preserves genuine numeric negatives.
-- **Status:** Open; prioritized in the security-remediation commit.
-- **Tests:** Formula-prefix, embedded-quote/comma, negative-number, and filename tests.
+- **Status:** Fixed. Text cells with formula prefixes are neutralized, numeric values
+  remain numeric, fields are quoted correctly, and object URLs are revoked.
+- **Tests:** Formula prefixes, quotes/commas, negative numbers, filenames, disabled
+  export state, and object URL lifecycle.
 
 ### SEC-002 — Caller-controlled expensive forecast fitting
 
@@ -54,8 +57,11 @@ After dependency commit `25821ae`, pip-audit reported no known vulnerabilities a
 - **Impact:** Low-cost denial of service on a portfolio-sized deployment.
 - **Remediation:** Remove caller-owned model order, bound candidates/horizon/history,
   enforce fit concurrency and deployment rate/resource limits.
-- **Status:** Open; no large product work begins until fixed.
-- **Tests:** Parameter bounds, busy capacity, bounded candidates, and failure recovery.
+- **Status:** Fixed. The public route no longer accepts an order, horizon is 1-10,
+  history is bounded, evaluated candidates are server-owned, two non-blocking fit slots
+  are enforced, and deployment adds rate/CPU/memory limits.
+- **Tests:** Horizon/range bounds, busy capacity, fixed candidate set, failed fits,
+  baseline fallback, and model-selection behavior.
 
 ### SEC-003 — Identifier validation does not protect the upstream path
 
@@ -68,8 +74,10 @@ After dependency commit `25821ae`, pip-audit reported no known vulnerabilities a
 - **Impact:** Route confusion, log/error probing, and avoidable resource use.
 - **Remediation:** Anchored ASCII formats, length caps, known-metadata validation, HTTPS
   base validation, and cross-host redirect prevention.
-- **Status:** Open; prioritized.
-- **Tests:** Malformed/unknown country and indicator, encoded delimiters, base URL policy.
+- **Status:** Fixed. Anchored ASCII formats, length/range caps, cached known-metadata
+  validation, HTTPS base policy, disabled redirects, and upstream host checks are active.
+- **Tests:** Malformed and unknown codes, delimiter/path syntax, unsafe base URLs,
+  periods, response bounds, and redirects.
 
 ### SEC-004 — Upstream errors leak details and use incorrect HTTP semantics
 
@@ -82,8 +90,10 @@ After dependency commit `25821ae`, pip-audit reported no known vulnerabilities a
 - **Impact:** Internal path/configuration disclosure and misleading error handling.
 - **Remediation:** Explicit exceptions, sanitized structured logs, safe client messages,
   and 422/502/503/504/500 mapping.
-- **Status:** Open; prioritized.
-- **Tests:** Timeout, connection, HTTP failure, malformed JSON/envelope, internal failure.
+- **Status:** Fixed. Application exceptions map to sanitized 422/502/503/504 responses;
+  unexpected failures return a generic 500 while diagnostics remain server-side.
+- **Tests:** Timeout, connection error, malformed JSON/envelope, missing fields,
+  unexpected exceptions, empty data, and response-detail non-disclosure.
 
 ### SEC-005 — Known-vulnerable Python dependencies
 
@@ -111,8 +121,10 @@ After dependency commit `25821ae`, pip-audit reported no known vulnerabilities a
 - **Impact:** Development-only behavior and a broad listener in production.
 - **Remediation:** Remove the launcher; document explicit local and non-reload production
   commands.
-- **Status:** Open; prioritized.
-- **Tests:** Bandit re-scan and application import/smoke tests.
+- **Status:** Fixed. The executable reload launcher was removed; production uses the
+  container CMD without reload and local documentation binds reload to loopback.
+- **Tests:** Bandit reports no application findings; API import, tests, and local smoke
+  checks passed.
 
 ### SEC-007 — CORS accepts unsafe operator configuration
 
@@ -125,8 +137,10 @@ After dependency commit `25821ae`, pip-audit reported no known vulnerabilities a
 - **Impact:** API responses become readable from more browser origins than intended.
 - **Remediation:** Validate exact HTTP(S) origins; reject wildcard, credentials, paths,
   queries and fragments; keep GET-only, no credentials, and narrow headers.
-- **Status:** Open.
-- **Tests:** Typed configuration and middleware preflight tests.
+- **Status:** Fixed. Exact credential-free HTTP(S) origins are required; wildcard, paths,
+  queries and fragments are rejected. CORS remains GET-only without credentials.
+- **Tests:** Wildcard rejection, request validation, middleware configuration review,
+  and same-origin production proxy configuration.
 
 ### SEC-008 — Cache refresh can amplify an upstream outage
 
@@ -159,7 +173,8 @@ After dependency commit `25821ae`, pip-audit reported no known vulnerabilities a
 - **Status:** Fixed. Every action is pinned to a reviewed full commit SHA, checkout
   persistence is disabled, permissions remain read-only, jobs have timeouts and
   concurrency cancellation, and Dependabot monitors actions plus both ecosystems.
-- **Tests:** Local YAML/content review; the published Actions run is verified after push.
+- **Tests:** YAML parsing and mutable-reference scan passed locally. Published run
+  `31807886861` completed both backend and frontend security/quality jobs successfully.
 
 ### SEC-010 — No repository credential detected
 
@@ -186,6 +201,37 @@ documentation will assign each effective control to the layer that can enforce i
 
 ## Final re-audit
 
-This section will be updated after backend, forecasting, frontend, CI, and deployment
-changes. Every item will remain fixed, accepted, or deferred with justification, and no
-failed check will be hidden.
+The final adversarial pass revisited input formats, known-code validation, upstream URL
+policy, redirects, CORS, exception bodies, logs, cache concurrency, forecast cost, CSV
+cells, browser rendering, nginx headers/rate limits, containers, manifests, CI
+permissions, action references, and environment examples.
+
+Final outcome:
+
+- No unresolved confirmed Critical or High finding remains.
+- SEC-001 through SEC-009 are fixed; SEC-010 remains an informational verified control.
+- The public evaluated forecast uses bounded candidates and exposes baseline comparison,
+  temporal metrics, missing-year behavior, and uncertainty rather than presenting a
+  forecast as fact.
+- GitHub Actions uses read-only permissions, full action SHAs, audit/static/test/build
+  gates, timeouts, concurrency cancellation, and Dependabot.
+- The production topology keeps FastAPI private behind a non-root nginx proxy and adds
+  resource, request, CSP, and health controls at the layers that can enforce them.
+
+Accepted or deferred risks:
+
+- The legacy `/forecast` response is retained for compatibility and does not expose the
+  richer evaluation metadata; the dashboard uses `/forecast/evaluate`.
+- Cache and forecast semaphores are process-local. Multi-replica deployments must preserve
+  per-replica limits or add justified shared infrastructure.
+- An anonymous public API cannot provide identity-based quotas. Trusted-edge rate limiting
+  and platform resource limits remain required.
+- Dockerfiles and Compose parsed successfully, but images were not built locally because
+  the Docker daemon was unavailable. Registry/platform image scanning remains an operator step.
+- Automated browser visual inspection could not run because no browser was available in
+  the local browser harness; component tests, accessibility-oriented selectors, strict
+  TypeScript, lint, and production build passed.
+- TestClient emits a Starlette deprecation warning recommending httpx2. It does not affect
+  production behavior and is deferred until the ecosystem migration is stable.
+- World Bank correctness/availability, OpenStreetMap privacy/availability, and registry
+  publisher compromise remain external trust dependencies.

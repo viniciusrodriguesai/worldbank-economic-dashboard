@@ -1,282 +1,118 @@
 # Frontend
 
-The frontend is a strict TypeScript and React application built with Vite. It provides country and indicator selection, historical charts, ARIMA forecast visualization, geographic context, and client-side CSV export.
+The frontend is a strict TypeScript/React data product built with Vite. It supports
+bounded indicator search, one-to-five-country comparison, dynamic year ranges, KPIs,
+Plotly history and forecast charts, Leaflet context, and secure CSV export.
 
-See the [root README](../README.md) for full-stack setup and [src/README.md](src/README.md) for source-level conventions.
+See the [root guide](../README.md), [source guide](src/README.md), and
+[page orchestration guide](src/pages/README.md).
 
 ## Technology
 
 | Tool | Role |
 | --- | --- |
-| TypeScript | Component and API contract safety |
-| React 19 | UI state and rendering |
-| Vite 8 | Development server, TypeScript build, and code splitting |
-| Axios | Typed HTTP requests, timeouts, and cancellation |
-| React Select | Searchable controlled selectors |
-| Plotly basic distribution | Interactive time-series charts |
-| React Leaflet | Country map and OpenStreetMap tiles |
-| Vitest | Unit and integration-style component tests |
-| Testing Library | User-oriented DOM interaction assertions |
+| React 19 | UI state, semantics, and rendering |
+| TypeScript 7 strict mode | Browser/API contract safety |
+| Vite 8 | Development and optimized production build |
+| Axios | Typed requests, timeouts, and cancellation |
+| React Select | Accessible searchable multi-select controls |
+| Plotly basic distribution | Historical lines, forecast line, and uncertainty band |
+| React Leaflet | Geographic context and OpenStreetMap tiles |
+| Vitest and Testing Library | User-oriented deterministic tests |
+| Oxlint | TypeScript, React, accessibility, and suspicious-code checks |
 
 ## Commands
 
-Install reproducibly:
-
-```powershell
+~~~powershell
 npm ci
-```
-
-Start development:
-
-```powershell
-npm run dev
-```
-
-Run tests once:
-
-```powershell
+npm audit --audit-level=high
+npm run lint
 npm test
-```
-
-Run tests in watch mode:
-
-```powershell
+npm run test:coverage
 npm run test:watch
-```
-
-Type-check and build production assets:
-
-```powershell
 npm run build
-```
+npm run dev
+~~~
 
-Preview the generated build:
+npm run build performs strict TypeScript validation before the Vite production build.
+Coverage thresholds are configured in vite.config.ts and enforced in CI.
 
-```powershell
-npm run preview
-```
+## Development
 
-## Development server
+Vite listens on http://localhost:5173 and proxies /api to
+http://127.0.0.1:8000. Production does not use this server; nginx serves dist and proxies
+the same /api prefix.
 
-Vite runs at `http://localhost:5173`.
+VITE_API_BASE_URL defaults to /api. It is embedded into browser JavaScript at build time,
+so it is public configuration. Never place a password, token, private host credential, or
+server secret in any VITE-prefixed variable.
 
-The development proxy rewrites:
+## Data flow
 
-```text
-Browser request:  /api/data
-Backend request:  http://127.0.0.1:8000/data
-```
-
-This keeps local browser requests on one origin and avoids requiring a permissive CORS policy.
-
-The proxy is configured in `vite.config.ts`.
-
-## Environment
-
-`VITE_API_BASE_URL` controls the Axios base URL.
-
-Default:
-
-```text
-/api
-```
-
-Create a local override:
-
-```powershell
-Copy-Item .env.example .env
-```
-
-For a separately hosted API:
-
-```dotenv
-VITE_API_BASE_URL=https://api.example.com
-```
-
-Vite variables are embedded at build time. Never place secrets in a `VITE_*` variable because browser users can read the generated JavaScript.
-
-## Application flow
-
-```mermaid
+~~~mermaid
 flowchart TD
     Start[Dashboard mounts]
-    Metadata[Load countries and indicators]
-    Select[User selects filters]
-    Validate[Validate year range]
-    Cancel[Cancel obsolete requests]
-    Data[Fetch historical points]
-    Map[Load country map]
-    Chart[Lazy-load Plotly chart]
-    Export[Export historical CSV]
-    Forecast[Request ARIMA forecast]
+    Countries[Load country metadata]
+    Search[Debounced indicator search]
+    Select[Choose 1-5 countries, indicator, years]
+    Validate[Validate shared range]
+    Cancel[Abort obsolete request]
+    Compare[Fetch comparison data]
+    KPIs[Calculate visible summaries]
+    Chart[Render multi-line history]
+    Export[Create safe CSV]
+    Forecast[Evaluate one-country forecast]
+    Band[Render metrics and uncertainty]
 
-    Start --> Metadata
-    Metadata --> Select
-    Select --> Validate
-    Validate --> Cancel
-    Cancel --> Data
-    Select --> Map
-    Data --> Chart
-    Data --> Export
-    Data --> Forecast
-    Forecast --> Chart
-```
+    Start --> Countries
+    Start --> Search
+    Countries --> Select
+    Search --> Select
+    Select --> Validate --> Cancel --> Compare
+    Compare --> KPIs
+    Compare --> Chart
+    Compare --> Export
+    Compare --> Forecast --> Band
+~~~
 
-## Source structure
+## Security boundaries
 
-```text
-frontend/
-|-- public/                       # Static images served without transformation
-|-- src/
-|   |-- components/               # Reusable typed UI components
-|   |-- pages/                    # Dashboard composition and page tests
-|   |-- test/setup.ts             # Test cleanup and DOM matchers
-|   |-- api.ts                    # Typed Axios boundary
-|   |-- api.test.ts               # API regression tests
-|   |-- App.tsx                   # Application root
-|   |-- main.tsx                  # React DOM entrypoint
-|   |-- types.ts                  # Shared data and selector contracts
-|   `-- vite-env.d.ts             # Vite browser typings
-|-- .env.example
-|-- index.html
-|-- package-lock.json
-|-- package.json
-|-- tsconfig.json
-`-- vite.config.ts
-```
+- src/api.ts owns endpoint paths, the 20-second timeout, AbortSignal use, and safe FastAPI
+  error extraction.
+- src/csv.ts distinguishes numeric cells from untrusted text, quotes fields
+  deterministically, and neutralizes spreadsheet formula prefixes.
+- React renders text normally; there is no dangerouslySetInnerHTML use.
+- Plotly and Leaflet receive normalized typed data. Map tiles are an external browser
+  request and never receive an application credential.
+- Object URLs created for downloads are revoked after use.
+- Stale comparison and forecast requests are canceled and cannot replace newer state.
 
-## Type contracts
+## Source layout
 
-Shared frontend types live in `src/types.ts`.
-
-| Type | Purpose |
+| Path | Responsibility |
 | --- | --- |
-| `ApiCountry` | Raw country response from FastAPI |
-| `ApiIndicator` | Raw indicator response from FastAPI |
-| `CountryOption` | Country selector option including ISO2 |
-| `IndicatorOption` | Indicator selector option |
-| `IndicatorPoint` | Historical or future API observation |
-| `ChartPoint` | Plotly-ready year and numeric value |
-
-Do not duplicate these shapes inside components. Extend the shared contract and update API tests when the backend schema changes.
-
-## HTTP client
-
-`src/api.ts` is the only module that should know endpoint paths and raw response shapes.
-
-It provides:
-
-- A 20-second Axios timeout.
-- Configurable base URL.
-- Typed generic responses.
-- AbortSignal support.
-- Country and indicator option mapping.
-- FastAPI `detail` extraction.
-- Validation-array message formatting.
-- Cancelled-request detection.
-
-Components should call exported functions rather than importing Axios directly.
-
-## Request state
-
-The Dashboard maintains separate state for:
-
-- Metadata loading.
-- Historical data loading.
-- Forecast loading.
-- Historical points.
-- Forecast points.
-- User-facing messages.
-- Selected country and indicator.
-- Selected year range.
-
-An `AbortController` cancels obsolete historical or forecast work when filters change. Cancellation is not displayed as an error.
-
-Forecast state is cleared before a new selection is loaded so stale projections cannot reappear.
-
-## Performance
-
-The production build uses:
-
-- The Plotly basic distribution rather than the complete Plotly bundle.
-- Dynamic imports for `LineChart`.
-- Dynamic imports for `MapChart`.
-- Separate chart and map chunks.
-- Vite minification and hashed assets.
-- Responsive Plotly resizing.
-
-Keep expensive visualization libraries behind lazy boundaries.
-
-## CSV export
-
-`ExportCSV.tsx`:
-
-1. Derives headers from the typed `IndicatorPoint`.
-2. Serializes values safely.
-3. Prefixes UTF-8 content with a byte-order mark for Excel.
-4. Creates a temporary Blob URL.
-5. Triggers the download.
-6. Removes the temporary element.
-7. Revokes the Blob URL.
-
-CSV export happens entirely in the browser.
+| src/api.ts | Typed HTTP boundary and cancellation |
+| src/types.ts | Shared API, selector, chart, and forecast contracts |
+| src/csv.ts | Safe deterministic CSV serialization |
+| src/pages/Dashboard.tsx | Product state and workflow orchestration |
+| src/components | Selectors, charts, map, and export action |
+| src/test/setup.ts | DOM matchers and test cleanup |
+| nginx.conf | Production static host, CSP, headers, rate limit, and API proxy |
 
 ## Testing
 
-The suite uses Vitest with jsdom and Testing Library.
+The frontend tests cover metadata and indicator requests, country selection, historical
+comparison, cancellation, invalid ranges, loading/error states, forecast metrics,
+uncertainty rendering, CSV encoding/formula protection, accessible control names, and
+download URL cleanup.
 
-```powershell
-npm test
-```
+External HTTP is mocked. Tests must not call the live World Bank API or OpenStreetMap.
 
-Tests cover:
+Latest measured local coverage is reported in the root engineering report; CI enforces
+minimums of 78% statements, 65% branches, 80% functions, and 80% lines.
 
-- Typed country and ISO2 mapping.
-- Correct `start` and `end` query parameters.
-- Forecast fitting period forwarding.
-- Direct array return contracts.
-- FastAPI validation error extraction.
-- Country and indicator selection.
-- Historical data loading.
-- Forecast generation.
-- Invalid period prevention.
+## Production
 
-The test pool uses one thread for deterministic behavior in constrained Windows and CI environments. DOM cleanup runs after every test.
-
-## Production build
-
-```powershell
-npm ci
-npm run build
-```
-
-The output is written to `dist/`.
-
-Deployment checklist:
-
-1. Set the production `VITE_API_BASE_URL`.
-2. Run the build.
-3. Serve `dist/` through an HTTPS static host or CDN.
-4. Add the frontend origin to the backend `CORS_ORIGINS`.
-5. Configure SPA fallback to `index.html` if routes are added later.
-6. Verify API and OpenStreetMap access from the deployed origin.
-
-## Development conventions
-
-- Keep TypeScript `strict` enabled.
-- Use `import type` for type-only imports.
-- Reuse contracts from `types.ts`.
-- Keep selectors controlled by page state.
-- Avoid direct Axios calls from components.
-- Cancel work that becomes obsolete.
-- Provide visible loading and error states.
-- Prefer accessible labels and semantic buttons.
-- Add tests for every API-contract correction.
-- Run `npm test` and `npm run build` before committing.
-
-## Further documentation
-
-- [Source conventions](src/README.md)
-- [Component contracts](src/components/README.md)
-- [Page state and orchestration](src/pages/README.md)
-- [Root architecture and deployment](../README.md)
+The multi-stage Dockerfile builds with Node and copies only dist into a digest-pinned
+nginx runtime. nginx runs as UID 101 with a read-only root, dropped capabilities and
+bounded temporary storage. See [deployment](../docs/DEPLOYMENT.md).
