@@ -5,6 +5,7 @@ interface IndicatorSelectorProps {
   options: IndicatorOption[];
   value: IndicatorOption | null;
   onChange: (value: IndicatorOption | null) => void;
+  onSearch?: (value: string) => void;
   isLoading?: boolean;
 }
 
@@ -12,6 +13,7 @@ export default function IndicatorSelector({
   options,
   value,
   onChange,
+  onSearch,
   isLoading = false,
 }: IndicatorSelectorProps) {
   return (
@@ -22,13 +24,9 @@ export default function IndicatorSelector({
       isLoading={isLoading}
       placeholder="Select an indicator"
       isClearable
-      aria-label="Indicator selector"
-      styles={{
-        container: base => ({
-          ...base,
-          width: 300,
-        }),
-      }}
+      onInputChange={value => onSearch?.(value)}
+      aria-label="Economic indicator"
+      classNamePrefix="select"
     />
   );
 }

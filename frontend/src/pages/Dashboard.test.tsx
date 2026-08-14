@@ -5,10 +5,14 @@ import type { CountryOption, IndicatorOption } from '../types';
 
 const apiMocks = vi.hoisted(() => ({
   fetchCountries: vi.fn(),
+  fetchComparison: vi.fn(),
   fetchData: vi.fn(),
   fetchForecast: vi.fn(),
+  fetchForecastEvaluation: vi.fn(),
   fetchIndicators: vi.fn(),
 }));
+
+const currentYear = new Date().getFullYear();
 
 vi.mock('../api', () => ({
   ...apiMocks,
@@ -25,14 +29,14 @@ vi.mock('../components/CountrySelector', () => ({
     onChange,
   }: {
     options: CountryOption[];
-    value: CountryOption | null;
-    onChange: (option: CountryOption | null) => void;
+    value: CountryOption[];
+    onChange: (option: CountryOption[]) => void;
   }) => (
     <select
       aria-label="Country selector"
-      value={value?.value ?? ''}
+      value={value[0]?.value ?? ''}
       onChange={event => (
-        onChange(options.find(option => option.value === event.target.value) ?? null)
+        onChange(options.filter(option => option.value === event.target.value))
       )}
     >
       <option value="">Select a country</option>
@@ -87,22 +91,30 @@ describe('Dashboard', () => {
     apiMocks.fetchIndicators.mockResolvedValue([
       { value: 'NY.GDP.MKTP.CD', label: 'GDP (current US$)' },
     ]);
-    apiMocks.fetchData.mockResolvedValue([
+    apiMocks.fetchComparison.mockResolvedValue([
       {
-        country: 'Brazil',
+        country: 'BRA',
         indicator: 'NY.GDP.MKTP.CD',
         year: 2022,
         value: 1.92e12,
       },
     ]);
-    apiMocks.fetchForecast.mockResolvedValue([
-      {
-        country: 'BRA',
-        indicator: 'NY.GDP.MKTP.CD',
-        year: 2023,
-        value: 2.01e12,
+    apiMocks.fetchForecastEvaluation.mockResolvedValue({
+      history: [],
+      forecast: [{
+        country: 'BRA', indicator: 'NY.GDP.MKTP.CD', year: currentYear + 1,
+        value: 2.01e12, lower_bound: 1.9e12, upper_bound: 2.1e12,
+      }],
+      evaluation: {
+        selected_model: 'drift', selected_order: null, validation_points: 3,
+        model_metrics: { mae: 1, rmse: 1.2, mape: 2, smape: 2 },
+        baseline_model: 'drift', baseline_metrics: { mae: 1, rmse: 1.2, mape: 2, smape: 2 },
+        beats_baseline: false,
       },
-    ]);
+      horizon: 5,
+      missing_years: [],
+      warnings: [],
+    });
   });
 
   it('loads selected data and generates a forecast with the visible range', async () => {
@@ -122,31 +134,31 @@ describe('Dashboard', () => {
     });
 
     await waitFor(() => {
-      expect(apiMocks.fetchData).toHaveBeenCalledWith(
-        'BRA',
+      expect(apiMocks.fetchComparison).toHaveBeenCalledWith(
+        ['BRA'],
         'NY.GDP.MKTP.CD',
-        2000,
-        2022,
+        currentYear - 20,
+        currentYear,
         expect.any(AbortSignal),
       );
     });
-    expect(await screen.findByText('Historical Data')).toBeInTheDocument();
+    expect(await screen.findByText('Annual observations and evaluated forecast')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', {
-      name: 'Generate 5-Year Forecast',
+      name: 'Evaluate forecast',
     }));
 
     await waitFor(() => {
-      expect(apiMocks.fetchForecast).toHaveBeenCalledWith(
+      expect(apiMocks.fetchForecastEvaluation).toHaveBeenCalledWith(
         'BRA',
         'NY.GDP.MKTP.CD',
-        2000,
-        2022,
+        currentYear - 20,
+        currentYear,
         5,
         expect.any(AbortSignal),
       );
     });
-    expect(await screen.findByText('5-Year Forecast')).toBeInTheDocument();
+    expect(await screen.findByText('drift')).toBeInTheDocument();
   });
 
   it('does not request data when the period is reversed', async () => {
@@ -159,12 +171,15 @@ describe('Dashboard', () => {
     fireEvent.change(screen.getByLabelText('Indicator selector'), {
       target: { value: 'NY.GDP.MKTP.CD' },
     });
-    fireEvent.change(screen.getByLabelText('From:'), {
-      target: { value: '2023' },
+    await waitFor(() => expect(apiMocks.fetchComparison).toHaveBeenCalled());
+    apiMocks.fetchComparison.mockClear();
+    fireEvent.change(screen.getByLabelText('Start year'), {
+      target: { value: String(currentYear + 1) },
     });
 
     expect(await screen.findByText(
       'The start year must be less than or equal to the end year.',
     )).toBeInTheDocument();
+    expect(apiMocks.fetchComparison).not.toHaveBeenCalled();
   });
 });

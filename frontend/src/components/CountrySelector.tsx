@@ -3,8 +3,8 @@ import type { CountryOption } from '../types';
 
 interface CountrySelectorProps {
   options: CountryOption[];
-  value: CountryOption | null;
-  onChange: (value: CountryOption | null) => void;
+  value: CountryOption[];
+  onChange: (value: CountryOption[]) => void;
   isLoading?: boolean;
 }
 
@@ -15,20 +15,17 @@ export default function CountrySelector({
   isLoading = false,
 }: CountrySelectorProps) {
   return (
-    <Select<CountryOption>
+    <Select<CountryOption, true>
       options={options}
       value={value}
-      onChange={onChange}
+      onChange={selected => onChange([...selected])}
       isLoading={isLoading}
-      placeholder="Select a country"
-      isClearable
-      aria-label="Country selector"
-      styles={{
-        container: base => ({
-          ...base,
-          width: 300,
-        }),
-      }}
+      placeholder="Select up to 5 countries"
+      isMulti
+      closeMenuOnSelect={false}
+      isOptionDisabled={() => value.length >= 5}
+      aria-label="Countries"
+      classNamePrefix="select"
     />
   );
 }
