@@ -13,6 +13,7 @@ Explore live macroeconomic indicators, visualize country-level time series, expo
 
 [Getting started](#getting-started) |
 [Architecture](#architecture) |
+[Documentation](#documentation-map) |
 [API reference](#api-reference) |
 [Testing](#testing-and-quality) |
 [Contributing](#contributing)
@@ -158,6 +159,29 @@ worldbank-economic-dashboard/
 |-- pyproject.toml                    # Pytest and coverage configuration
 `-- README.md
 ```
+
+## Documentation map
+
+Documentation is organized by ownership boundary. Start with this file for the complete product view, then use the nearest directory guide when changing a specific layer.
+
+| Guide | Use it for |
+| --- | --- |
+| [Project guide](README.md) | Product scope, architecture, setup, configuration, API reference, forecasting, quality, operations, security, and contribution workflow. |
+| [Backend guide](backend/README.md) | FastAPI architecture, environment variables, route behavior, World Bank integration, caching, forecasting, errors, and backend operations. |
+| [Backend test guide](backend/tests/README.md) | Test isolation, mocked upstream responses, fixtures, coverage policy, test structure, and adding backend cases. |
+| [Frontend guide](frontend/README.md) | Vite workspace setup, scripts, environment configuration, dependencies, testing, builds, deployment, and troubleshooting. |
+| [Frontend source guide](frontend/src/README.md) | TypeScript module boundaries, dependency direction, shared contracts, HTTP isolation, testing placement, and source contribution rules. |
+| [Component guide](frontend/src/components/README.md) | Selector, Plotly, Leaflet, and CSV contracts plus accessibility, performance, dependency, and component testing rules. |
+| [Page guide](frontend/src/pages/README.md) | Dashboard state, request lifecycles, cancellation, data transformations, lazy rendering, errors, and orchestration tests. |
+| [CI workflow guide](.github/workflows/README.md) | GitHub Actions triggers, permissions, jobs, caches, local parity, failure diagnosis, runtime upgrades, and workflow maintenance. |
+
+Recommended reading paths:
+
+- **First-time contributor:** project guide, then the frontend or backend guide for the layer being changed.
+- **Backend API change:** backend guide, backend test guide, and API reference in this file.
+- **Frontend workflow change:** frontend source guide, page guide, and component guide as applicable.
+- **Build or CI failure:** relevant layer guide followed by the CI workflow guide.
+- **Production review:** configuration, performance, troubleshooting, and security sections in this file plus both layer guides.
 
 ## Getting started
 
