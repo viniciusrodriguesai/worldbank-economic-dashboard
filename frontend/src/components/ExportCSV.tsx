@@ -1,4 +1,5 @@
 import type { IndicatorPoint } from '../types';
+import { safeCsvFileName, serializeIndicatorCsv } from '../csv';
 
 interface ExportCSVProps {
   data: IndicatorPoint[];
@@ -16,23 +17,13 @@ export default function ExportCSV({
       return;
     }
 
-    const headers = Object.keys(data[0]) as Array<keyof IndicatorPoint>;
-    const rows = [
-      headers.join(','),
-      ...data.map(row => (
-        headers
-          .map(field => JSON.stringify(row[field] ?? ''))
-          .join(',')
-      )),
-    ];
-
-    const csvContent = `\uFEFF${rows.join('\n')}`;
+    const csvContent = serializeIndicatorCsv(data);
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
 
     link.href = url;
-    link.download = `${fileName}.csv`;
+    link.download = `${safeCsvFileName(fileName)}.csv`;
     document.body.appendChild(link);
     link.click();
     link.remove();
