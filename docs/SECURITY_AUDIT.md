@@ -151,12 +151,15 @@ After dependency commit `25821ae`, pip-audit reported no known vulnerabilities a
 - **Kind:** Supply-chain hardening recommendation
 - **Component / surface:** CI action execution.
 - **Exploitation:** Compromise or retagging of a mutable action reference changes CI code.
-- **Evidence:** `actions/checkout@v4`, `setup-python@v5`, `setup-node@v4`.
+- **Evidence:** The former workflow referenced `actions/checkout@v4`,
+  `setup-python@v5`, and `setup-node@v4` through mutable tags.
 - **Impact:** Source/token exposure, reduced by current `contents: read` permissions.
 - **Remediation:** Pin reviewed SHAs, retain least privilege, add dependency review and
   automated update configuration.
-- **Status:** Deferred to the CI hardening phase.
-- **Tests:** Workflow syntax review and published Actions runs.
+- **Status:** Fixed. Every action is pinned to a reviewed full commit SHA, checkout
+  persistence is disabled, permissions remain read-only, jobs have timeouts and
+  concurrency cancellation, and Dependabot monitors actions plus both ecosystems.
+- **Tests:** Local YAML/content review; the published Actions run is verified after push.
 
 ### SEC-010 — No repository credential detected
 

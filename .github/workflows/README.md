@@ -8,8 +8,9 @@ The current workflow is `ci.yml`.
 
 Continuous integration verifies both application layers on every change targeting `main`:
 
-- the FastAPI backend installs its development dependencies and runs the complete pytest suite; and
-- the React frontend performs a clean dependency installation, runs Vitest, type-checks the strict TypeScript project, and creates a Vite production build.
+- the FastAPI backend runs Ruff, Bandit, pip-audit, Pytest, and the coverage gate; and
+- the React frontend performs a clean install, dependency audit, Oxlint, Vitest
+  coverage, strict TypeScript validation, and a Vite production build.
 
 The backend and frontend jobs run independently. A failure in one does not hide the result of the other, and GitHub can execute them concurrently.
 
@@ -43,11 +44,12 @@ The `backend` job runs on GitHub's current Ubuntu runner and uses Python 3.11.
 
 | Step | Action |
 | --- | --- |
-| Checkout | Retrieves the revision under test with `actions/checkout@v4`. |
-| Python setup | Installs Python 3.11 with `actions/setup-python@v5`. |
+| Checkout | Retrieves the revision with credentials disabled and a reviewed action SHA. |
+| Python setup | Installs Python 3.11 through a reviewed action SHA. |
 | Dependency cache | Keys pip's cache from both backend requirement files. |
 | Installation | Installs `backend/requirements-dev.txt`, which includes runtime and test tooling. |
-| Verification | Runs `python -m pytest` from the repository root. |
+| Static/security checks | Runs Ruff, Bandit, and pip-audit against production code/dependencies. |
+| Verification | Runs `python -m pytest` with the enforced coverage threshold. |
 
 Pytest configuration lives in the root `pyproject.toml`. Running from the repository root is important because tests import the `backend` package and coverage settings use repository-relative paths.
 
@@ -57,6 +59,9 @@ Local equivalent:
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r backend\requirements-dev.txt
+ruff check backend
+bandit -q -r backend -x backend\tests
+pip-audit -r backend\requirements.txt
 python -m pytest
 ```
 
@@ -68,19 +73,22 @@ The `frontend` job runs on the same Ubuntu runner family with Node.js 22.15.0. I
 
 | Step | Action |
 | --- | --- |
-| Checkout | Retrieves the revision under test with `actions/checkout@v4`. |
-| Node setup | Installs the pinned Node.js version with `actions/setup-node@v4`. |
+| Checkout | Retrieves the revision with credentials disabled and a reviewed action SHA. |
+| Node setup | Installs the pinned Node.js version through a reviewed action SHA. |
 | Dependency cache | Keys npm's download cache from `frontend/package-lock.json`. |
 | Installation | Runs `npm ci` for a clean, lockfile-enforced install. |
-| Tests | Runs the complete Vitest suite with `npm test`. |
-| Production build | Runs `npm run build`, which performs `tsc -b` before Vite bundling. |
+| Security/lint | Runs `npm audit --audit-level=high` and `npm run lint`. |
+| Tests | Runs Vitest through `npm run test:coverage` and enforces thresholds. |
+| Production build | Runs `npm run build`, which type-checks before Vite bundling. |
 
 Local equivalent:
 
 ```powershell
 Set-Location frontend
 npm ci
-npm test
+npm audit --audit-level=high
+npm run lint
+npm run test:coverage
 npm run build
 ```
 
@@ -138,7 +146,8 @@ For Node.js:
 3. run `npm ci`, `npm test`, and `npm run build`; and
 4. update developer documentation if the minimum supported version changes.
 
-Pin exact language runtime versions when reproducibility matters. Action dependencies are currently pinned to reviewed major versions so they receive compatible maintenance updates.
+Pin exact language runtime versions when reproducibility matters. Action dependencies
+are pinned to reviewed full commit SHAs and monitored by Dependabot.
 
 ## Modifying the workflow
 
