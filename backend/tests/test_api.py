@@ -44,6 +44,24 @@ def test_lists_cached_countries_and_indicators(client: TestClient) -> None:
     ]
 
 
+def test_indicator_search_is_filtered_and_bounded(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        app_module,
+        "_indicators_cache",
+        [
+            {"id": "SP.POP.TOTL", "name": "Population, total"},
+            {"id": "NY.GDP.PCAP.CD", "name": "GDP per capita"},
+            {"id": "NY.GDP.MKTP.CD", "name": "GDP"},
+        ],
+    )
+    response = client.get("/indicators", params={"search": "gdp", "limit": 1, "offset": 1})
+    assert response.status_code == 200
+    assert response.json() == [{"id": "NY.GDP.MKTP.CD", "name": "GDP"}]
+
+
 def test_data_forwards_selected_period(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
@@ -125,6 +143,51 @@ def test_data_returns_404_for_empty_series(
     )
 
     assert response.status_code == 404
+
+
+def test_compare_data_limits_and_labels_countries_by_code(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        app_module,
+        "_countries_cache",
+        [
+            {"id": "BRA", "iso2Code": "BR", "name": "Brazil", "region": "LAC", "capitalCity": "Brasilia"},
+            {"id": "USA", "iso2Code": "US", "name": "United States", "region": "North America", "capitalCity": "Washington"},
+        ],
+    )
+    monkeypatch.setattr(
+        app_module,
+        "get_indicator_data_df",
+        lambda country, indicator, *_: pd.DataFrame(
+            [{"country": "ignored", "indicator": indicator, "year": 2020, "value": 1.0}]
+        ),
+    )
+    response = client.get(
+        "/data/compare",
+        params=[
+            ("countries", "BRA"),
+            ("countries", "USA"),
+            ("indicator", "NY.GDP.MKTP.CD"),
+            ("start", "2020"),
+            ("end", "2020"),
+        ],
+    )
+    assert response.status_code == 200
+    assert [point["country"] for point in response.json()] == ["BRA", "USA"]
+
+
+def test_compare_data_rejects_duplicate_countries(client: TestClient) -> None:
+    response = client.get(
+        "/data/compare",
+        params=[
+            ("countries", "BRA"),
+            ("countries", "BRA"),
+            ("indicator", "NY.GDP.MKTP.CD"),
+        ],
+    )
+    assert response.status_code == 422
 
 
 def test_data_validates_country_code(client: TestClient) -> None:
@@ -226,6 +289,46 @@ def test_forecast_returns_429_when_capacity_is_busy(
         params={"country": "BRA", "indicator": "NY.GDP.MKTP.CD", "end": 2020},
     )
     assert response.status_code == 429
+
+
+def test_evaluated_forecast_returns_metrics_and_intervals(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        app_module,
+        "get_indicator_data_df",
+        lambda *_: pd.DataFrame(
+            [{"country": "Brazil", "indicator": "NY.GDP.MKTP.CD", "year": year, "value": year} for year in range(2010, 2021)]
+        ),
+    )
+
+    def fake_evaluate(*_: object) -> dict[str, object]:
+        return {
+            "history": [{"country": "Brazil", "indicator": "NY.GDP.MKTP.CD", "year": 2020, "value": 1.0}],
+            "forecast": [{"country": "BRA", "indicator": "NY.GDP.MKTP.CD", "year": 2021, "value": 2.0, "lower_bound": 1.5, "upper_bound": 2.5}],
+            "evaluation": {
+                "selected_model": "drift",
+                "selected_order": None,
+                "validation_points": 2,
+                "model_metrics": {"mae": 1, "rmse": 1, "mape": 2, "smape": 2},
+                "baseline_model": "drift",
+                "baseline_metrics": {"mae": 1, "rmse": 1, "mape": 2, "smape": 2},
+                "beats_baseline": False,
+            },
+            "horizon": 1,
+            "missing_years": [],
+            "warnings": ["Baseline selected."],
+        }
+
+    monkeypatch.setattr(app_module, "evaluate_forecast", fake_evaluate)
+    response = client.get(
+        "/forecast/evaluate",
+        params={"country": "BRA", "indicator": "NY.GDP.MKTP.CD", "end": 2020, "years_ahead": 1},
+    )
+    assert response.status_code == 200
+    assert response.json()["forecast"][0]["lower_bound"] == 1.5
+    assert response.json()["evaluation"]["selected_model"] == "drift"
 
 
 def test_unexpected_data_error_does_not_leak_details(

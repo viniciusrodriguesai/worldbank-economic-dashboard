@@ -4,6 +4,7 @@ import time
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from threading import BoundedSemaphore, Lock
+from typing import Annotated
 from urllib.parse import urlsplit
 
 from fastapi import FastAPI, HTTPException, Query
@@ -23,7 +24,8 @@ from backend.exceptions import (
     UpstreamResponseError,
     UpstreamTimeoutError,
 )
-from backend.models import Country, Indicator, IndicatorPoint
+from backend.models import Country, ForecastResponse, Indicator, IndicatorPoint
+from backend.services.forecasting import evaluate_forecast
 
 # Logging setup
 logging.basicConfig(level=logging.INFO)
@@ -134,11 +136,24 @@ def countries():
         ) from e
 
 @app.get("/indicators", response_model=list[Indicator])
-def indicators():
-    """Return the list of indicators, cached if available."""
+def indicators(
+    search: str | None = Query(None, max_length=100, pattern=r"^[^\x00-\x1f\x7f]*$"),
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0, le=50_000),
+):
+    """Return a bounded, searchable slice of cached indicator metadata."""
     try:
         _ensure_cache_valid()
-        return _indicators_cache or []
+        available = _indicators_cache or []
+        if search:
+            term = search.casefold().strip()
+            available = [
+                item
+                for item in available
+                if term in str(item.get("name", "")).casefold()
+                or term in str(item.get("id", "")).casefold()
+            ]
+        return available[offset : offset + limit]
     except Exception as e:
         logger.exception("Failed to fetch indicators cache")
         raise HTTPException(
@@ -210,6 +225,52 @@ def data(
             detail="An unexpected error occurred while loading data."
         ) from exc
 
+
+@app.get("/data/compare", response_model=list[IndicatorPoint])
+def compare_data(
+    countries: Annotated[list[str], Query(description="One to five ISO3 country codes")],
+    indicator: str = Query(
+        ...,
+        min_length=1,
+        max_length=64,
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]*$",
+    ),
+    start: int = Query(2000, ge=1900, le=2100),
+    end: int = Query(datetime.now(UTC).year, ge=1900, le=datetime.now(UTC).year + 1),
+):
+    """Return one shared indicator for a bounded set of countries."""
+    if not 1 <= len(countries) <= 5:
+        raise HTTPException(status_code=422, detail="Select between one and five countries.")
+    if len(set(countries)) != len(countries):
+        raise HTTPException(status_code=422, detail="Country codes must be unique.")
+    if any(len(code) != 3 or not code.isascii() or not code.isupper() for code in countries):
+        raise HTTPException(status_code=422, detail="Country codes must be uppercase ISO3 values.")
+    if start > end:
+        raise HTTPException(status_code=400, detail="Start year cannot be greater than end year.")
+    if end - start > 120:
+        raise HTTPException(status_code=422, detail="Requested period cannot exceed 120 years.")
+    records: list[dict] = []
+    try:
+        for country in countries:
+            _validate_known_codes(country, indicator)
+            frame = get_indicator_data_df(country, indicator, start, end)
+            if not frame.empty:
+                frame = frame.assign(country=country)
+                records.extend(frame.to_dict(orient="records"))
+    except HTTPException:
+        raise
+    except (InvalidRequestError, UpstreamTimeoutError, UpstreamConnectionError, UpstreamResponseError) as exc:
+        _raise_http_error(exc)
+    except Exception as exc:
+        logger.exception("Unexpected error while loading comparison data")
+        raise HTTPException(
+            status_code=500,
+            detail="An unexpected error occurred while loading comparison data.",
+        ) from exc
+    if not records:
+        raise HTTPException(status_code=404, detail="No comparison data was found.")
+    return records
+
 @app.get("/forecast", response_model=list[IndicatorPoint])
 def forecast(
     country: str = Query(..., pattern=r"^[A-Z]{3}$", description="ISO3 country code"),
@@ -261,3 +322,50 @@ def forecast(
             status_code=500,
             detail="An unexpected error occurred while generating the forecast."
         ) from exc
+
+
+@app.get("/forecast/evaluate", response_model=ForecastResponse)
+def forecast_evaluation(
+    country: str = Query(..., pattern=r"^[A-Z]{3}$"),
+    indicator: str = Query(
+        ...,
+        min_length=1,
+        max_length=64,
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]*$",
+    ),
+    start: int = Query(1960, ge=1900, le=2100),
+    end: int | None = Query(None, ge=1900, le=datetime.now(UTC).year + 1),
+    years_ahead: int = Query(5, ge=1, le=10),
+):
+    """Return a temporally validated forecast, metrics, intervals, and warnings."""
+    resolved_end = end if end is not None else datetime.now(UTC).year
+    if start > resolved_end:
+        raise HTTPException(status_code=400, detail="Start year cannot be greater than end year.")
+    if resolved_end - start > 120:
+        raise HTTPException(status_code=422, detail="Requested period cannot exceed 120 years.")
+    _validate_known_codes(country, indicator)
+    if not _forecast_slots.acquire(blocking=False):
+        raise HTTPException(status_code=429, detail="Forecast capacity is busy. Please retry shortly.")
+    try:
+        frame = get_indicator_data_df(country, indicator, start, resolved_end)
+        if frame.empty:
+            raise HTTPException(status_code=404, detail="Forecast history is not available.")
+        return evaluate_forecast(frame, country, indicator, years_ahead)
+    except HTTPException:
+        raise
+    except (
+        ForecastUnavailableError,
+        InvalidRequestError,
+        UpstreamTimeoutError,
+        UpstreamConnectionError,
+        UpstreamResponseError,
+    ) as exc:
+        _raise_http_error(exc)
+    except Exception as exc:
+        logger.exception("Unexpected error during evaluated forecasting")
+        raise HTTPException(
+            status_code=500,
+            detail="An unexpected error occurred while generating the forecast.",
+        ) from exc
+    finally:
+        _forecast_slots.release()
