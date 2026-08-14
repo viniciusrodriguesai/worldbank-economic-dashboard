@@ -367,3 +367,30 @@ def test_metadata_failure_returns_503(
 
     assert response.status_code == 503
     assert response.json()["detail"] == "Country data is temporarily unavailable."
+
+
+def test_metadata_cache_refreshes_once_and_then_hits(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(app_module, "_countries_cache", None)
+    monkeypatch.setattr(app_module, "_indicators_cache", None)
+    monkeypatch.setattr(app_module, "_cache_timestamp", None)
+    calls = {"countries": 0, "indicators": 0}
+
+    def countries_frame() -> pd.DataFrame:
+        calls["countries"] += 1
+        return pd.DataFrame([{
+            "id": "BRA", "iso2Code": "BR", "name": "Brazil",
+            "region": "Latin America", "capitalCity": "Brasilia",
+        }])
+
+    def indicators_frame() -> pd.DataFrame:
+        calls["indicators"] += 1
+        return pd.DataFrame([{"id": "GDP", "name": "GDP"}])
+
+    monkeypatch.setattr(app_module, "get_countries_df", countries_frame)
+    monkeypatch.setattr(app_module, "get_indicators_df", indicators_frame)
+    app_module._ensure_cache_valid()
+    app_module._ensure_cache_valid()
+    assert calls == {"countries": 1, "indicators": 1}
+    assert app_module._countries_cache[0]["id"] == "BRA"

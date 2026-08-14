@@ -1,5 +1,6 @@
 from typing import Any
 
+import pandas as pd
 import pytest
 import requests
 
@@ -110,3 +111,46 @@ def test_api_base_requires_credential_free_https() -> None:
     for value in ["http://api.worldbank.org/v2", "https://user:pass@example.com/v2", "file:///tmp"]:
         with pytest.raises(RuntimeError):
             data_loader._validate_api_base(value)
+
+
+def test_country_and_indicator_metadata_are_normalized(monkeypatch: pytest.MonkeyPatch) -> None:
+    country_raw = [{
+        "id": "BRA",
+        "iso2Code": "BR",
+        "name": "Brazil",
+        "region": {"value": "Latin America & Caribbean"},
+        "capitalCity": "Brasilia",
+    }]
+    indicator_raw = [{"id": "NY.GDP.MKTP.CD", "name": "GDP"}]
+    monkeypatch.setattr(
+        data_loader,
+        "_fetch_all",
+        lambda path, _: country_raw if path == "country" else indicator_raw,
+    )
+    countries = data_loader.get_countries_df()
+    indicators = data_loader.get_indicators_df()
+    assert countries.to_dict(orient="records")[0]["region"] == "Latin America & Caribbean"
+    assert indicators.to_dict(orient="records") == [{"id": "NY.GDP.MKTP.CD", "name": "GDP"}]
+
+
+def test_indicator_data_returns_empty_after_invalid_values(monkeypatch: pytest.MonkeyPatch) -> None:
+    raw = [{
+        "country": {"value": "Brazil"},
+        "indicator": {"id": "GDP"},
+        "date": "bad-year",
+        "value": "not-a-number",
+    }]
+    monkeypatch.setattr(data_loader, "_fetch_all", lambda *_: raw)
+    assert data_loader.get_indicator_data_df("BRA", "GDP", 2000, 2020).empty
+
+
+def test_legacy_forecast_rejects_short_history(monkeypatch: pytest.MonkeyPatch) -> None:
+    frame = pd.DataFrame({
+        "country": ["Brazil"] * 9,
+        "indicator": ["GDP"] * 9,
+        "year": list(range(2010, 2019)),
+        "value": list(range(9)),
+    })
+    monkeypatch.setattr(data_loader, "get_indicator_data_df", lambda *_: frame)
+    with pytest.raises(data_loader.ForecastUnavailableError, match="10 observations"):
+        data_loader.forecast_indicator("BRA", "GDP", 2010, 2018, 2)

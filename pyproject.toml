@@ -1,3 +1,3 @@
 [tool.pytest.ini_options]
 testpaths = ["backend/tests"]
-addopts = "--strict-markers --cov=backend --cov-report=term-missing"
+addopts = "--strict-markers --cov=backend --cov-report=term-missing --cov-fail-under=85"
