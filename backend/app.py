@@ -1,5 +1,7 @@
 import logging
+import os
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Optional, Tuple
 from backend.data_loader import (
     get_countries_df,
@@ -17,6 +19,23 @@ logger = logging.getLogger(__name__)
 app = FastAPI(
     title="World Bank Economic Dashboard API",
     version="1.0.0"
+)
+
+allowed_origins = [
+    origin.strip()
+    for origin in os.getenv(
+        "CORS_ORIGINS",
+        "http://localhost:3000,http://localhost:5173",
+    ).split(",")
+    if origin.strip()
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allowed_origins,
+    allow_credentials=False,
+    allow_methods=["GET"],
+    allow_headers=["*"],
 )
 
 # Simple TTL caches
