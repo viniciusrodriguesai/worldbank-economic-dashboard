@@ -135,7 +135,6 @@ def forecast_indicator(country: str, indicator: str, start: int, end: int,
         'year': fc_years,
         'value': forecast_vals.values
     })
-    result = pd.concat([hist_df, df_fc], ignore_index=True)
     logger.info("Forecast generated for %d future years", years_ahead)
-    return result[['country', 'indicator', 'year', 'value']]
+    return df_fc[['country', 'indicator', 'year', 'value']]
 
