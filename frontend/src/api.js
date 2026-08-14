@@ -36,7 +36,7 @@ export async function fetchIndicators() {
  */
 export async function fetchData(countryCode, indicatorCode, startYear, endYear) {
   const res = await apiClient.get('/data', {
-    params: { country: countryCode, indicator: indicatorCode, from: startYear, to: endYear },
+    params: { country: countryCode, indicator: indicatorCode, start: startYear, end: endYear },
     validateStatus: () => true, // allow handling of 400
   });
 
