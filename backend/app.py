@@ -1,6 +1,10 @@
+from contextlib import asynccontextmanager
 import logging
 import os
+from threading import Lock
+import time
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Optional, Tuple
 from backend.data_loader import (
@@ -16,9 +20,19 @@ import uvicorn
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    try:
+        await run_in_threadpool(_ensure_cache_valid)
+    except Exception:
+        logger.exception("Unable to preload metadata cache")
+    yield
+
+
 app = FastAPI(
     title="World Bank Economic Dashboard API",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan,
 )
 
 allowed_origins = [
@@ -43,34 +57,38 @@ _indicators_cache: Optional[List[dict]] = None
 _countries_cache: Optional[List[dict]] = None
 _cache_timestamp: Optional[float] = None
 _CACHE_TTL = 3600  # seconds
+_cache_lock = Lock()
 
-@app.on_event("startup")
-async def load_caches():
-    """
-    Preload countries and indicators at startup
-    and refresh caches when TTL expires.
-    """
-    await _refresh_caches()
-
-async def _refresh_caches():
-    import time
+def _refresh_caches():
     global _indicators_cache, _countries_cache, _cache_timestamp
-    try:
-        logger.info("Refreshing caches...")
-        df_ind = get_indicators_df()
-        _indicators_cache = df_ind.to_dict(orient="records")
-        df_countries = get_countries_df()
-        _countries_cache = df_countries.to_dict(orient="records")
-        _cache_timestamp = time.time()
-        logger.info(f"Cache loaded: {len(_countries_cache)} countries and {len(_indicators_cache)} indicators")
-    except Exception as e:
-        logger.error(f"Error preloading cache: {e}", exc_info=True)
+    logger.info("Refreshing metadata cache")
+    indicators = get_indicators_df().to_dict(orient="records")
+    countries = get_countries_df().to_dict(orient="records")
+    _indicators_cache = indicators
+    _countries_cache = countries
+    _cache_timestamp = time.monotonic()
+    logger.info(
+        "Cache loaded: %d countries and %d indicators",
+        len(countries),
+        len(indicators),
+    )
 
 
 def _ensure_cache_valid():
-    import time, asyncio
-    if _cache_timestamp is None or (time.time() - _cache_timestamp) > _CACHE_TTL:
-        asyncio.run(_refresh_caches())
+    cache_is_fresh = (
+        _cache_timestamp is not None
+        and (time.monotonic() - _cache_timestamp) <= _CACHE_TTL
+    )
+    if cache_is_fresh:
+        return
+
+    with _cache_lock:
+        cache_is_fresh = (
+            _cache_timestamp is not None
+            and (time.monotonic() - _cache_timestamp) <= _CACHE_TTL
+        )
+        if not cache_is_fresh:
+            _refresh_caches()
 
 @app.get("/countries", response_model=List[Country])
 def countries():
@@ -80,7 +98,10 @@ def countries():
         return _countries_cache or []
     except Exception as e:
         logger.exception("Failed to fetch countries cache")
-        raise HTTPException(status_code=500, detail=f"Failed to retrieve country list: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail="Country data is temporarily unavailable.",
+        ) from e
 
 @app.get("/indicators", response_model=List[Indicator])
 def indicators():
@@ -90,7 +111,10 @@ def indicators():
         return _indicators_cache or []
     except Exception as e:
         logger.exception("Failed to fetch indicators cache")
-        raise HTTPException(status_code=500, detail=f"Failed to retrieve indicator list: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail="Indicator data is temporarily unavailable.",
+        ) from e
 
 @app.get("/data", response_model=List[IndicatorPoint])
 def data(
