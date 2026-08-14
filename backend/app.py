@@ -7,6 +7,7 @@ from backend.data_loader import (
     get_indicator_data_df,
     forecast_indicator
 )
+from backend.models import Country, Indicator, IndicatorPoint
 import uvicorn
 
 # Logging setup
@@ -52,7 +53,7 @@ def _ensure_cache_valid():
     if _cache_timestamp is None or (time.time() - _cache_timestamp) > _CACHE_TTL:
         asyncio.run(_refresh_caches())
 
-@app.get("/countries", response_model=List[dict])
+@app.get("/countries", response_model=List[Country])
 def countries():
     """Return the list of countries, cached if available."""
     try:
@@ -62,7 +63,7 @@ def countries():
         logger.exception("Failed to fetch countries cache")
         raise HTTPException(status_code=500, detail=f"Failed to retrieve country list: {e}")
 
-@app.get("/indicators", response_model=List[dict])
+@app.get("/indicators", response_model=List[Indicator])
 def indicators():
     """Return the list of indicators, cached if available."""
     try:
@@ -72,7 +73,7 @@ def indicators():
         logger.exception("Failed to fetch indicators cache")
         raise HTTPException(status_code=500, detail=f"Failed to retrieve indicator list: {e}")
 
-@app.get("/data", response_model=List[dict])
+@app.get("/data", response_model=List[IndicatorPoint])
 def data(
     country: str = Query(..., min_length=3, max_length=3, description="ISO3 country code"),
     indicator: str = Query(..., min_length=1, description="Indicator code"),
@@ -102,7 +103,7 @@ def data(
             detail=f"Internal server error while fetching data for country='{country}', indicator='{indicator}'."
         )
 
-@app.get("/forecast", response_model=List[dict])
+@app.get("/forecast", response_model=List[IndicatorPoint])
 def forecast(
     country: str = Query(..., min_length=3, max_length=3, description="ISO3 country code"),
     indicator: str = Query(..., min_length=1, description="Indicator code"),

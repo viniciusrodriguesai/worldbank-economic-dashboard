@@ -60,7 +60,7 @@ def get_countries_df() -> pd.DataFrame:
             logger.error(msg)
             raise ValueError(msg)
     logger.info("Countries dataframe built with %d rows", len(df))
-    return df[required_cols]
+    return df[required_cols].rename(columns={"region.value": "region"})
 
 
 def get_indicators_df() -> pd.DataFrame:
