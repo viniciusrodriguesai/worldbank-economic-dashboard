@@ -1,10 +1,9 @@
 // src/pages/Dashboard.jsx
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import type { ChangeEvent } from 'react';
 import CountrySelector from '../components/CountrySelector';
 import IndicatorSelector from '../components/IndicatorSelector';
-import LineChart from '../components/LineChart';
-import MapChart from '../components/MapChart';
 import ExportCSV from '../components/ExportCSV';
 import {
   fetchCountries,
@@ -14,20 +13,28 @@ import {
   getApiErrorMessage,
   isRequestCanceled,
 } from '../api';
+import type {
+  CountryOption,
+  IndicatorOption,
+  IndicatorPoint,
+} from '../types';
+
+const LineChart = lazy(() => import('../components/LineChart'));
+const MapChart = lazy(() => import('../components/MapChart'));
 
 export default function Dashboard() {
-  const [countries, setCountries] = useState([]);
-  const [indicators, setIndicators] = useState([]);
-  const [country, setCountry] = useState(null);
-  const [indicator, setIndicator] = useState(null);
+  const [countries, setCountries] = useState<CountryOption[]>([]);
+  const [indicators, setIndicators] = useState<IndicatorOption[]>([]);
+  const [country, setCountry] = useState<CountryOption | null>(null);
+  const [indicator, setIndicator] = useState<IndicatorOption | null>(null);
   const [range, setRange] = useState({ start: 2000, end: 2022 });
-  const [data, setData] = useState([]);
-  const [forecast, setForecast] = useState([]);
+  const [data, setData] = useState<IndicatorPoint[]>([]);
+  const [forecast, setForecast] = useState<IndicatorPoint[]>([]);
   const [metadataLoading, setMetadataLoading] = useState(true);
   const [dataLoading, setDataLoading] = useState(false);
   const [forecastLoading, setForecastLoading] = useState(false);
   const [message, setMessage] = useState('');
-  const forecastControllerRef = useRef(null);
+  const forecastControllerRef = useRef<AbortController | null>(null);
 
   // Load countries and indicators once
   useEffect(() => {
@@ -42,7 +49,7 @@ export default function Dashboard() {
         setCountries(countryOptions);
         setIndicators(indicatorOptions);
       })
-      .catch(error => {
+      .catch((error: unknown) => {
         if (!isRequestCanceled(error)) {
           setMessage(getApiErrorMessage(error, 'Failed to load filters.'));
         }
@@ -85,7 +92,7 @@ export default function Dashboard() {
           setData(result);
         }
       })
-      .catch(error => {
+      .catch((error: unknown) => {
         if (!isRequestCanceled(error)) {
           setData([]);
           setMessage(getApiErrorMessage(error, 'Failed to load data.'));
@@ -126,7 +133,7 @@ export default function Dashboard() {
           setForecast(fc);
         }
       })
-      .catch(error => {
+      .catch((error: unknown) => {
         if (!isRequestCanceled(error)) {
           setForecast([]);
           setMessage(getApiErrorMessage(error, 'Failed to generate forecast.'));
@@ -159,7 +166,11 @@ export default function Dashboard() {
         />
       </div>
 
-      {country && <MapChart country={country} />}
+      {country && (
+        <Suspense fallback={<p>Loading map...</p>}>
+          <MapChart country={country} />
+        </Suspense>
+      )}
 
       <div style={{ display: 'flex', gap: 16, marginBottom: 20 }}>
         <label>
@@ -167,7 +178,9 @@ export default function Dashboard() {
           <input
             type="number"
             value={range.start}
-            onChange={e => setRange(r => ({ ...r, start: +e.target.value }))}
+            onChange={(event: ChangeEvent<HTMLInputElement>) => (
+              setRange(current => ({ ...current, start: Number(event.target.value) }))
+            )}
             style={{ width: 80, marginLeft: 8 }}
           />
         </label>
@@ -176,7 +189,9 @@ export default function Dashboard() {
           <input
             type="number"
             value={range.end}
-            onChange={e => setRange(r => ({ ...r, end: +e.target.value }))}
+            onChange={(event: ChangeEvent<HTMLInputElement>) => (
+              setRange(current => ({ ...current, end: Number(event.target.value) }))
+            )}
             style={{ width: 80, marginLeft: 8 }}
           />
         </label>
@@ -206,19 +221,27 @@ export default function Dashboard() {
         <p style={{ fontStyle: 'italic', marginBottom: 20 }}>Carregando dados...</p>
       )}
 
-      {data.length > 0 && (
-        <LineChart
-          data={data.map(d => ({ year: d.year, indicator_value: d.value }))}
-          title="Historical Data"
-        />
-      )}
+      <Suspense fallback={<p>Loading chart...</p>}>
+        {data.length > 0 && (
+          <LineChart
+            data={data.map(point => ({
+              year: point.year,
+              indicatorValue: point.value,
+            }))}
+            title="Historical Data"
+          />
+        )}
 
-      {forecast.length > 0 && (
-        <LineChart
-          data={forecast.map(d => ({ year: d.year, indicator_value: d.forecast ?? d.value }))}
-          title="5-Year Forecast"
-        />
-      )}
+        {forecast.length > 0 && (
+          <LineChart
+            data={forecast.map(point => ({
+              year: point.year,
+              indicatorValue: point.value,
+            }))}
+            title="5-Year Forecast"
+          />
+        )}
+      </Suspense>
     </div>
   );
 }

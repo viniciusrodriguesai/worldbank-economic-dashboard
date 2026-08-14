@@ -1,9 +1,11 @@
 import React, { useEffect } from 'react';
 import { MapContainer, Marker, Popup, TileLayer, useMap } from 'react-leaflet';
+import type { LatLngTuple } from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import type { CountryOption } from '../types';
 
 // Coordenadas dos países (centro aproximado) — ISO 3166-1 alpha-2
-const countryCoords = {
+const countryCoords: Record<string, LatLngTuple> = {
   AF: [33.93911, 67.709953],
   AL: [41.153332, 20.168331],
   DZ: [28.033886, 1.659626],
@@ -252,7 +254,11 @@ const countryCoords = {
   ZW: [-19.015438, 29.154857]
 };
 
-function RecenterMap({ position }) {
+interface RecenterMapProps {
+  position: LatLngTuple;
+}
+
+function RecenterMap({ position }: RecenterMapProps) {
   const map = useMap();
 
   useEffect(() => {
@@ -262,7 +268,11 @@ function RecenterMap({ position }) {
   return null;
 }
 
-const MapChart = ({ country }) => {
+interface MapChartProps {
+  country: CountryOption;
+}
+
+const MapChart = ({ country }: MapChartProps) => {
   const position = countryCoords[country?.iso2Code] || [0, 0];
 
   return (
