@@ -1,11 +1,18 @@
 // src/pages/Dashboard.jsx
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import CountrySelector from '../components/CountrySelector';
 import IndicatorSelector from '../components/IndicatorSelector';
 import LineChart from '../components/LineChart';
 import ExportCSV from '../components/ExportCSV';
-import { fetchCountries, fetchIndicators, fetchData, fetchForecast } from '../api';
+import {
+  fetchCountries,
+  fetchData,
+  fetchForecast,
+  fetchIndicators,
+  getApiErrorMessage,
+  isRequestCanceled,
+} from '../api';
 
 export default function Dashboard() {
   const [countries, setCountries] = useState([]);
@@ -15,66 +22,121 @@ export default function Dashboard() {
   const [range, setRange] = useState({ start: 2000, end: 2022 });
   const [data, setData] = useState([]);
   const [forecast, setForecast] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [metadataLoading, setMetadataLoading] = useState(true);
+  const [dataLoading, setDataLoading] = useState(false);
+  const [forecastLoading, setForecastLoading] = useState(false);
   const [message, setMessage] = useState('');
+  const forecastControllerRef = useRef(null);
 
   // Load countries and indicators once
   useEffect(() => {
-    fetchCountries()
-      .then(setCountries)
-      .catch(err => console.error('Error loading countries:', err));
+    const controller = new AbortController();
+    setMetadataLoading(true);
 
-    fetchIndicators()
-      .then(setIndicators)
-      .catch(err => console.error('Error loading indicators:', err));
+    Promise.all([
+      fetchCountries(controller.signal),
+      fetchIndicators(controller.signal),
+    ])
+      .then(([countryOptions, indicatorOptions]) => {
+        setCountries(countryOptions);
+        setIndicators(indicatorOptions);
+      })
+      .catch(error => {
+        if (!isRequestCanceled(error)) {
+          setMessage(getApiErrorMessage(error, 'Failed to load filters.'));
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setMetadataLoading(false);
+        }
+      });
+
+    return () => controller.abort();
   }, []);
 
   // Fetch historical data when selections or range change
   useEffect(() => {
-    if (!country || !indicator) return;
+    forecastControllerRef.current?.abort();
+    setForecast([]);
 
+    if (!country || !indicator) {
+      setData([]);
+      return undefined;
+    }
+
+    if (!Number.isInteger(range.start) || !Number.isInteger(range.end) || range.start > range.end) {
+      setData([]);
+      setMessage('The start year must be less than or equal to the end year.');
+      return undefined;
+    }
+
+    const controller = new AbortController();
     setMessage('');
-    setLoading(true);
+    setDataLoading(true);
 
-    fetchData(country.value, indicator.value, range.start, range.end)
+    fetchData(country.value, indicator.value, range.start, range.end, controller.signal)
       .then(result => {
-        if (!result || result.length === 0) {
+        if (result.length === 0) {
           setData([]);
           setMessage('No data available for the selected parameters.');
         } else {
           setData(result);
         }
       })
-      .catch(err => {
-        console.error('Error fetching data:', err);
-        setData([]);
-        setMessage(`Failed to load data: ${err.message}`);
+      .catch(error => {
+        if (!isRequestCanceled(error)) {
+          setData([]);
+          setMessage(getApiErrorMessage(error, 'Failed to load data.'));
+        }
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setDataLoading(false);
+        }
+      });
+
+    return () => controller.abort();
   }, [country, indicator, range]);
 
   // Handle forecast generation
   const handleForecast = () => {
     if (!country || !indicator || data.length === 0) return;
 
+    forecastControllerRef.current?.abort();
+    const controller = new AbortController();
+    forecastControllerRef.current = controller;
     setMessage('');
-    setLoading(true);
+    setForecastLoading(true);
 
-    fetchForecast(country.value, indicator.value, range.start, range.end, 5)
+    fetchForecast(
+      country.value,
+      indicator.value,
+      range.start,
+      range.end,
+      5,
+      controller.signal,
+    )
       .then(fc => {
-        if (!fc || fc.length === 0) {
+        if (fc.length === 0) {
           setForecast([]);
           setMessage('No forecast data available.');
         } else {
           setForecast(fc);
         }
       })
-      .catch(err => {
-        console.error('Error generating forecast:', err);
-        setForecast([]);
-        setMessage(`Failed to generate forecast: ${err.message}`);
+      .catch(error => {
+        if (!isRequestCanceled(error)) {
+          setForecast([]);
+          setMessage(getApiErrorMessage(error, 'Failed to generate forecast.'));
+        }
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (forecastControllerRef.current === controller) {
+          setForecastLoading(false);
+          forecastControllerRef.current = null;
+        }
+      });
   };
 
   return (
@@ -82,8 +144,18 @@ export default function Dashboard() {
       <h1>📊 Economic Dashboard</h1>
 
       <div style={{ display: 'flex', gap: 16, marginBottom: 20 }}>
-        <CountrySelector options={countries} value={country} onChange={setCountry} />
-        <IndicatorSelector options={indicators} value={indicator} onChange={setIndicator} />
+        <CountrySelector
+          options={countries}
+          value={country}
+          onChange={setCountry}
+          isLoading={metadataLoading}
+        />
+        <IndicatorSelector
+          options={indicators}
+          value={indicator}
+          onChange={setIndicator}
+          isLoading={metadataLoading}
+        />
       </div>
 
       <div style={{ display: 'flex', gap: 16, marginBottom: 20 }}>
@@ -109,16 +181,16 @@ export default function Dashboard() {
 
       <button
         onClick={handleForecast}
-        disabled={!country || !indicator || loading || data.length === 0}
+        disabled={!country || !indicator || dataLoading || forecastLoading || data.length === 0}
         style={{ marginBottom: 20 }}
       >
-        {loading ? 'Loading...' : 'Generate 5-Year Forecast'}
+        {forecastLoading ? 'Generating...' : 'Generate 5-Year Forecast'}
       </button>
 
       <ExportCSV
         data={data}
         fileName="historical_data"
-        disabled={loading || data.length === 0}
+        disabled={dataLoading || data.length === 0}
       />
 
       {message && (
@@ -127,18 +199,18 @@ export default function Dashboard() {
         </div>
       )}
 
-      {loading && (
+      {dataLoading && (
         <p style={{ fontStyle: 'italic', marginBottom: 20 }}>Carregando dados...</p>
       )}
 
-      {data.length > 0 && !loading && (
+      {data.length > 0 && (
         <LineChart
           data={data.map(d => ({ year: d.year, indicator_value: d.value }))}
           title="Historical Data"
         />
       )}
 
-      {forecast.length > 0 && !loading && (
+      {forecast.length > 0 && (
         <LineChart
           data={forecast.map(d => ({ year: d.year, indicator_value: d.forecast ?? d.value }))}
           title="5-Year Forecast"
