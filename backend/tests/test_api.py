@@ -5,6 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from backend import app as app_module
+from backend.exceptions import UpstreamConnectionError, UpstreamTimeoutError
 
 
 @pytest.fixture
@@ -135,6 +136,41 @@ def test_data_validates_country_code(client: TestClient) -> None:
     assert response.status_code == 422
 
 
+@pytest.mark.parametrize("indicator", ["../secret", "GDP?redirect=x", "a" * 65])
+def test_data_rejects_unsafe_indicator_codes(client: TestClient, indicator: str) -> None:
+    response = client.get("/data", params={"country": "BRA", "indicator": indicator})
+    assert response.status_code == 422
+
+
+def test_data_rejects_unknown_metadata_code(client: TestClient) -> None:
+    response = client.get("/data", params={"country": "USA", "indicator": "NY.GDP.MKTP.CD"})
+    assert response.status_code == 422
+    assert response.json()["detail"] == "Unknown country code."
+
+
+@pytest.mark.parametrize(
+    ("failure", "status_code"),
+    [(UpstreamTimeoutError("timeout"), 504), (UpstreamConnectionError("offline"), 503)],
+)
+def test_data_maps_upstream_availability_failures(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    failure: Exception,
+    status_code: int,
+) -> None:
+    def fail(*_: object) -> pd.DataFrame:
+        raise failure
+
+    monkeypatch.setattr(app_module, "get_indicator_data_df", fail)
+    response = client.get(
+        "/data",
+        params={"country": "BRA", "indicator": "NY.GDP.MKTP.CD", "end": 2020},
+    )
+    assert response.status_code == status_code
+    assert "timeout" not in response.text
+    assert "offline" not in response.text
+
+
 def test_forecast_returns_future_points(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
@@ -165,6 +201,53 @@ def test_forecast_returns_future_points(
 
     assert response.status_code == 200
     assert response.json()[0]["year"] == 2023
+
+
+def test_forecast_rejects_excessive_horizon(client: TestClient) -> None:
+    response = client.get(
+        "/forecast",
+        params={"country": "BRA", "indicator": "NY.GDP.MKTP.CD", "years_ahead": 11},
+    )
+    assert response.status_code == 422
+
+
+def test_forecast_returns_429_when_capacity_is_busy(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class BusySlots:
+        def acquire(self, *, blocking: bool) -> bool:
+            assert blocking is False
+            return False
+
+    monkeypatch.setattr(app_module, "_forecast_slots", BusySlots())
+    response = client.get(
+        "/forecast",
+        params={"country": "BRA", "indicator": "NY.GDP.MKTP.CD", "end": 2020},
+    )
+    assert response.status_code == 429
+
+
+def test_unexpected_data_error_does_not_leak_details(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail(*_: object) -> pd.DataFrame:
+        raise RuntimeError("internal=https://private.invalid/token")
+
+    monkeypatch.setattr(app_module, "get_indicator_data_df", fail)
+    response = client.get(
+        "/data",
+        params={"country": "BRA", "indicator": "NY.GDP.MKTP.CD", "end": 2020},
+    )
+    assert response.status_code == 500
+    assert "private.invalid" not in response.text
+
+
+def test_cors_rejects_wildcard_configuration(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("CORS_ORIGINS", "*")
+    with pytest.raises(RuntimeError, match="exact HTTP"):
+        app_module._cors_origins()
 
 
 def test_metadata_failure_returns_503(

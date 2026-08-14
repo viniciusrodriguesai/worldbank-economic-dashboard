@@ -1,20 +1,29 @@
-from contextlib import asynccontextmanager
 import logging
 import os
-from threading import Lock
 import time
+from contextlib import asynccontextmanager
+from datetime import UTC, datetime
+from threading import BoundedSemaphore, Lock
+from urllib.parse import urlsplit
+
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
-from typing import List, Optional, Tuple
+
 from backend.data_loader import (
+    forecast_indicator,
     get_countries_df,
-    get_indicators_df,
     get_indicator_data_df,
-    forecast_indicator
+    get_indicators_df,
+)
+from backend.exceptions import (
+    ForecastUnavailableError,
+    InvalidRequestError,
+    UpstreamConnectionError,
+    UpstreamResponseError,
+    UpstreamTimeoutError,
 )
 from backend.models import Country, Indicator, IndicatorPoint
-import uvicorn
 
 # Logging setup
 logging.basicConfig(level=logging.INFO)
@@ -35,29 +44,50 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-allowed_origins = [
-    origin.strip()
-    for origin in os.getenv(
-        "CORS_ORIGINS",
-        "http://localhost:3000,http://localhost:5173",
-    ).split(",")
-    if origin.strip()
-]
+def _cors_origins() -> list[str]:
+    origins = [
+        origin.strip().rstrip("/")
+        for origin in os.getenv(
+            "CORS_ORIGINS",
+            "http://localhost:3000,http://localhost:5173",
+        ).split(",")
+        if origin.strip()
+    ]
+    for origin in origins:
+        parsed = urlsplit(origin)
+        if (
+            origin == "*"
+            or parsed.scheme not in {"http", "https"}
+            or not parsed.hostname
+            or parsed.path not in {"", "/"}
+            or parsed.query
+            or parsed.fragment
+            or parsed.username is not None
+            or parsed.password is not None
+        ):
+            raise RuntimeError(
+                "CORS_ORIGINS must contain exact HTTP(S) origins without credentials or paths."
+            )
+    return origins
+
+
+allowed_origins = _cors_origins()
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
     allow_credentials=False,
     allow_methods=["GET"],
-    allow_headers=["*"],
+    allow_headers=["Accept", "Content-Type"],
 )
 
 # Simple TTL caches
-_indicators_cache: Optional[List[dict]] = None
-_countries_cache: Optional[List[dict]] = None
-_cache_timestamp: Optional[float] = None
+_indicators_cache: list[dict] | None = None
+_countries_cache: list[dict] | None = None
+_cache_timestamp: float | None = None
 _CACHE_TTL = 3600  # seconds
 _cache_lock = Lock()
+_forecast_slots = BoundedSemaphore(value=2)
 
 def _refresh_caches():
     global _indicators_cache, _countries_cache, _cache_timestamp
@@ -90,7 +120,7 @@ def _ensure_cache_valid():
         if not cache_is_fresh:
             _refresh_caches()
 
-@app.get("/countries", response_model=List[Country])
+@app.get("/countries", response_model=list[Country])
 def countries():
     """Return the list of countries, cached if available."""
     try:
@@ -103,7 +133,7 @@ def countries():
             detail="Country data is temporarily unavailable.",
         ) from e
 
-@app.get("/indicators", response_model=List[Indicator])
+@app.get("/indicators", response_model=list[Indicator])
 def indicators():
     """Return the list of indicators, cached if available."""
     try:
@@ -116,73 +146,118 @@ def indicators():
             detail="Indicator data is temporarily unavailable.",
         ) from e
 
-@app.get("/data", response_model=List[IndicatorPoint])
+def _validate_known_codes(country: str, indicator: str) -> None:
+    try:
+        _ensure_cache_valid()
+    except Exception as exc:
+        logger.exception("Unable to validate metadata")
+        raise HTTPException(status_code=503, detail="Metadata is temporarily unavailable.") from exc
+    if not any(item.get("id") == country for item in (_countries_cache or [])):
+        raise HTTPException(status_code=422, detail="Unknown country code.")
+    if not any(item.get("id") == indicator for item in (_indicators_cache or [])):
+        raise HTTPException(status_code=422, detail="Unknown indicator code.")
+
+
+def _raise_http_error(exc: Exception) -> None:
+    if isinstance(exc, InvalidRequestError):
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    if isinstance(exc, UpstreamTimeoutError):
+        raise HTTPException(status_code=504, detail="World Bank API request timed out.") from exc
+    if isinstance(exc, UpstreamConnectionError):
+        raise HTTPException(status_code=503, detail="World Bank API is temporarily unavailable.") from exc
+    if isinstance(exc, UpstreamResponseError):
+        raise HTTPException(status_code=502, detail="World Bank API returned an invalid response.") from exc
+    if isinstance(exc, ForecastUnavailableError):
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    raise exc
+
+
+@app.get("/data", response_model=list[IndicatorPoint])
 def data(
-    country: str = Query(..., min_length=3, max_length=3, description="ISO3 country code"),
-    indicator: str = Query(..., min_length=1, description="Indicator code"),
+    country: str = Query(..., pattern=r"^[A-Z]{3}$", description="ISO3 country code"),
+    indicator: str = Query(
+        ...,
+        min_length=1,
+        max_length=64,
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]*$",
+        description="World Bank indicator code",
+    ),
     start: int = Query(2000, ge=1900, le=2100, description="Start year"),
-    end: int = Query(2022, ge=1900, le=2100, description="End year")
+    end: int = Query(datetime.now(UTC).year, ge=1900, le=datetime.now(UTC).year + 1),
 ):
     """Return time series data for a given country and indicator."""
     if start > end:
         raise HTTPException(status_code=400, detail="Start year cannot be greater than end year.")
+    if end - start > 120:
+        raise HTTPException(status_code=422, detail="Requested period cannot exceed 120 years.")
+    _validate_known_codes(country, indicator)
     try:
         df = get_indicator_data_df(country, indicator, start, end)
         if df.empty:
             raise HTTPException(
                 status_code=404,
-                detail=f"No data found for country='{country}', indicator='{indicator}' in {start}-{end}"
+                detail="No data was found for the selected country, indicator, and period."
             )
         return df.to_dict(orient="records")
     except HTTPException:
         raise
-    except ValueError as ve:
-        logger.warning(f"ValueError in /data for country={country}, indicator={indicator}: {ve}")
-        raise HTTPException(status_code=400, detail=str(ve))
-    except Exception as e:
-        logger.exception(f"Unexpected error in /data for country={country}, indicator={indicator}")
+    except (InvalidRequestError, UpstreamTimeoutError, UpstreamConnectionError, UpstreamResponseError) as exc:
+        _raise_http_error(exc)
+    except Exception as exc:
+        logger.exception("Unexpected error while loading economic data")
         raise HTTPException(
             status_code=500,
-            detail=f"Internal server error while fetching data for country='{country}', indicator='{indicator}'."
-        )
+            detail="An unexpected error occurred while loading data."
+        ) from exc
 
-@app.get("/forecast", response_model=List[IndicatorPoint])
+@app.get("/forecast", response_model=list[IndicatorPoint])
 def forecast(
-    country: str = Query(..., min_length=3, max_length=3, description="ISO3 country code"),
-    indicator: str = Query(..., min_length=1, description="Indicator code"),
+    country: str = Query(..., pattern=r"^[A-Z]{3}$", description="ISO3 country code"),
+    indicator: str = Query(
+        ...,
+        min_length=1,
+        max_length=64,
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]*$",
+        description="World Bank indicator code",
+    ),
     start: int = Query(1960, ge=1900, le=2100, description="Start year for model fitting"),
-    end: Optional[int] = Query(None, ge=1900, le=2100, description="End year for model fitting"),
-    years_ahead: int = Query(5, ge=1, le=50, description="Years to forecast ahead"),
-    arima_order: Optional[Tuple[int,int,int]] = Query((1,1,1), description="ARIMA order (p,d,q)")
+    end: int | None = Query(None, ge=1900, le=datetime.now(UTC).year + 1),
+    years_ahead: int = Query(5, ge=1, le=10, description="Years to forecast ahead"),
 ):
     """Return forecast data based on an ARIMA model for a given country and indicator."""
     try:
-        from datetime import datetime
         if end is None:
-            end = datetime.now().year
+            end = datetime.now(UTC).year
         if start > end:
             raise HTTPException(status_code=400, detail="Start year cannot be greater than end year.")
-        df_fc = forecast_indicator(country, indicator, start, end, years_ahead, arima_order)
+        if end - start > 120:
+            raise HTTPException(status_code=422, detail="Requested period cannot exceed 120 years.")
+        _validate_known_codes(country, indicator)
+        if not _forecast_slots.acquire(blocking=False):
+            raise HTTPException(status_code=429, detail="Forecast capacity is busy. Please retry shortly.")
+        try:
+            df_fc = forecast_indicator(country, indicator, start, end, years_ahead)
+        finally:
+            _forecast_slots.release()
         if df_fc.empty:
             raise HTTPException(
                 status_code=404,
-                detail=f"Forecast not available for country='{country}', indicator='{indicator}' with provided data."
+                detail="Forecast is not available for the selected series."
             )
         return df_fc.to_dict(orient="records")
     except HTTPException:
         raise
-    except ValueError as ve:
-        logger.warning(f"ValueError in /forecast for country={country}, indicator={indicator}: {ve}")
-        raise HTTPException(status_code=400, detail=str(ve))
-    except NotImplementedError:
-        raise HTTPException(status_code=501, detail="Forecast feature not yet implemented.")
-    except Exception as e:
-        logger.exception(f"Unexpected error in /forecast for country={country}, indicator={indicator}")
+    except (
+        ForecastUnavailableError,
+        InvalidRequestError,
+        UpstreamTimeoutError,
+        UpstreamConnectionError,
+        UpstreamResponseError,
+    ) as exc:
+        _raise_http_error(exc)
+    except Exception as exc:
+        logger.exception("Unexpected error during forecasting")
         raise HTTPException(
             status_code=500,
-            detail=f"Internal server error during forecasting for country='{country}', indicator='{indicator}'."
-        )
-
-if __name__ == "__main__":
-    # Run with: uvicorn backend.app:app --reload
-    uvicorn.run("backend.app:app", host="0.0.0.0", port=8000, reload=True)
+            detail="An unexpected error occurred while generating the forecast."
+        ) from exc
