@@ -52,7 +52,7 @@ def get_countries_df() -> pd.DataFrame:
     """
     raw = _fetch_all("country", {})
     df = pd.json_normalize(raw)
-    required_cols = ['id', 'name', 'region.value', 'capitalCity']
+    required_cols = ['id', 'iso2Code', 'name', 'region.value', 'capitalCity']
     for col in required_cols:
         if col not in df.columns:
             msg = f"Expected field '{col}' not found in countries data"
