@@ -39,6 +39,22 @@ def test_lists_cached_countries_and_indicators(client: TestClient) -> None:
     ]
 
 
+def test_health_is_independent_of_metadata(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        app_module,
+        "_load_metadata_snapshot",
+        lambda: (_ for _ in ()).throw(RuntimeError("upstream unavailable")),
+    )
+
+    response = client.get("/health")
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+
+
 def test_indicator_search_is_filtered_and_bounded(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,

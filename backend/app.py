@@ -84,6 +84,12 @@ app.add_middleware(
     allow_headers=["Accept", "Content-Type"],
 )
 
+
+@app.get("/health", response_model=dict[str, str])
+def health() -> dict[str, str]:
+    """Return process liveness without triggering external dependencies."""
+    return {"status": "ok"}
+
 @dataclass(frozen=True)
 class MetadataSnapshot:
     countries: tuple[dict, ...]
