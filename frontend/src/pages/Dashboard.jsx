@@ -60,7 +60,7 @@ export default function Dashboard() {
     setMessage('');
     setLoading(true);
 
-    fetchForecast(country.value, indicator.value, 5)
+    fetchForecast(country.value, indicator.value, range.start, range.end, 5)
       .then(fc => {
         if (!fc || fc.length === 0) {
           setForecast([]);
