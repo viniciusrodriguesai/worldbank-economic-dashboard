@@ -29,14 +29,15 @@ Global Pytest configuration lives in `../../pyproject.toml`.
 
 ## Test isolation
 
-The `client` fixture seeds country and indicator cache records and assigns a fresh monotonic timestamp. This prevents metadata routes from making live network requests.
+The `client` fixture primes the metadata cache with an immutable country and
+indicator snapshot. This prevents metadata routes from making live network requests.
 
 Route-specific tests use `monkeypatch` to replace:
 
 - `get_indicator_data_df`
 - `forecast_indicator`
-- `_refresh_caches`
-- Cache timestamps or records
+- `_load_metadata_snapshot`
+- Primed metadata snapshots
 
 Each replacement returns a small deterministic DataFrame or raises a controlled error.
 
@@ -138,6 +139,4 @@ Useful additions include:
 - Numeric conversion and missing-observation filtering.
 - ARIMA minimum-history enforcement.
 - Forecast horizon and custom order behavior.
-- Metadata TTL expiration.
-- Concurrent cache refresh behavior.
 - Lifespan preload failure and recovery.

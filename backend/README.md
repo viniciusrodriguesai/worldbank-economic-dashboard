@@ -21,6 +21,7 @@ See the [root documentation](../README.md) for full-stack setup, architecture, d
 | File | Responsibility |
 | --- | --- |
 | `app.py` | FastAPI construction, lifespan, CORS, cache coordination, routes, and HTTP errors |
+| `core/cache.py` | Thread-safe TTL caching, bounded stale fallback, and refresh backoff |
 | `data_loader.py` | World Bank session, pagination, DataFrame normalization, and ARIMA fitting |
 | `models.py` | Pydantic response contracts |
 | `requirements.txt` | Minimal production dependencies |
@@ -76,12 +77,13 @@ The cache:
 - Lives in process memory.
 - Uses a one-hour TTL.
 - Uses `time.monotonic()` for expiration checks.
-- Uses a lock to prevent concurrent duplicate refreshes.
-- Builds complete replacement lists before assigning global cache state.
+- Uses a lock to guarantee a single refresh under concurrent access.
+- Builds an immutable metadata snapshot before replacing the cached value.
+- Serves a previously valid snapshot for at most six additional hours if refresh fails.
+- Waits 60 seconds after a failed refresh before contacting the upstream again.
 - Attempts to preload during the FastAPI lifespan.
 - Lets the API start even when preload fails.
-- Retries on the next metadata request.
-- Returns 503 when metadata cannot be refreshed.
+- Returns 503 when no usable fresh or bounded-stale metadata exists.
 
 Each process owns its own cache. Multi-worker deployments do not share memory.
 

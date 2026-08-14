@@ -1,9 +1,9 @@
 import logging
 import os
-import time
 from contextlib import asynccontextmanager
+from dataclasses import dataclass
 from datetime import UTC, datetime
-from threading import BoundedSemaphore, Lock
+from threading import BoundedSemaphore
 from typing import Annotated
 from urllib.parse import urlsplit
 
@@ -11,6 +11,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 
+from backend.core.cache import StaleTtlCache
 from backend.data_loader import (
     forecast_indicator,
     get_countries_df,
@@ -83,51 +84,43 @@ app.add_middleware(
     allow_headers=["Accept", "Content-Type"],
 )
 
-# Simple TTL caches
-_indicators_cache: list[dict] | None = None
-_countries_cache: list[dict] | None = None
-_cache_timestamp: float | None = None
-_CACHE_TTL = 3600  # seconds
-_cache_lock = Lock()
+@dataclass(frozen=True)
+class MetadataSnapshot:
+    countries: tuple[dict, ...]
+    indicators: tuple[dict, ...]
+
+
+_metadata_cache = StaleTtlCache[MetadataSnapshot](
+    ttl_seconds=3600,
+    max_stale_seconds=6 * 3600,
+    retry_seconds=60,
+)
 _forecast_slots = BoundedSemaphore(value=2)
 
-def _refresh_caches():
-    global _indicators_cache, _countries_cache, _cache_timestamp
+
+def _load_metadata_snapshot() -> MetadataSnapshot:
     logger.info("Refreshing metadata cache")
     indicators = get_indicators_df().to_dict(orient="records")
     countries = get_countries_df().to_dict(orient="records")
-    _indicators_cache = indicators
-    _countries_cache = countries
-    _cache_timestamp = time.monotonic()
     logger.info(
         "Cache loaded: %d countries and %d indicators",
         len(countries),
         len(indicators),
     )
-
-
-def _ensure_cache_valid():
-    cache_is_fresh = (
-        _cache_timestamp is not None
-        and (time.monotonic() - _cache_timestamp) <= _CACHE_TTL
+    return MetadataSnapshot(
+        countries=tuple(countries),
+        indicators=tuple(indicators),
     )
-    if cache_is_fresh:
-        return
 
-    with _cache_lock:
-        cache_is_fresh = (
-            _cache_timestamp is not None
-            and (time.monotonic() - _cache_timestamp) <= _CACHE_TTL
-        )
-        if not cache_is_fresh:
-            _refresh_caches()
+
+def _ensure_cache_valid() -> MetadataSnapshot:
+    return _metadata_cache.get(_load_metadata_snapshot)
 
 @app.get("/countries", response_model=list[Country])
 def countries():
     """Return the list of countries, cached if available."""
     try:
-        _ensure_cache_valid()
-        return _countries_cache or []
+        return _ensure_cache_valid().countries
     except Exception as e:
         logger.exception("Failed to fetch countries cache")
         raise HTTPException(
@@ -143,8 +136,7 @@ def indicators(
 ):
     """Return a bounded, searchable slice of cached indicator metadata."""
     try:
-        _ensure_cache_valid()
-        available = _indicators_cache or []
+        available = list(_ensure_cache_valid().indicators)
         if search:
             term = search.casefold().strip()
             available = [
@@ -163,13 +155,13 @@ def indicators(
 
 def _validate_known_codes(country: str, indicator: str) -> None:
     try:
-        _ensure_cache_valid()
+        metadata = _ensure_cache_valid()
     except Exception as exc:
         logger.exception("Unable to validate metadata")
         raise HTTPException(status_code=503, detail="Metadata is temporarily unavailable.") from exc
-    if not any(item.get("id") == country for item in (_countries_cache or [])):
+    if not any(item.get("id") == country for item in metadata.countries):
         raise HTTPException(status_code=422, detail="Unknown country code.")
-    if not any(item.get("id") == indicator for item in (_indicators_cache or [])):
+    if not any(item.get("id") == indicator for item in metadata.indicators):
         raise HTTPException(status_code=422, detail="Unknown indicator code.")
 
 

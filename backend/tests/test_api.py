@@ -1,5 +1,3 @@
-import time
-
 import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
@@ -10,25 +8,22 @@ from backend.exceptions import UpstreamConnectionError, UpstreamTimeoutError
 
 @pytest.fixture
 def client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
-    monkeypatch.setattr(
-        app_module,
-        "_countries_cache",
-        [
-            {
-                "id": "BRA",
-                "iso2Code": "BR",
-                "name": "Brazil",
-                "region": "Latin America & Caribbean",
-                "capitalCity": "Brasilia",
-            }
-        ],
+    app_module._metadata_cache.prime(
+        app_module.MetadataSnapshot(
+            countries=(
+                {
+                    "id": "BRA",
+                    "iso2Code": "BR",
+                    "name": "Brazil",
+                    "region": "Latin America & Caribbean",
+                    "capitalCity": "Brasilia",
+                },
+            ),
+            indicators=(
+                {"id": "NY.GDP.MKTP.CD", "name": "GDP (current US$)"},
+            ),
+        )
     )
-    monkeypatch.setattr(
-        app_module,
-        "_indicators_cache",
-        [{"id": "NY.GDP.MKTP.CD", "name": "GDP (current US$)"}],
-    )
-    monkeypatch.setattr(app_module, "_cache_timestamp", time.monotonic())
     return TestClient(app_module.app)
 
 
@@ -48,14 +43,15 @@ def test_indicator_search_is_filtered_and_bounded(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(
-        app_module,
-        "_indicators_cache",
-        [
-            {"id": "SP.POP.TOTL", "name": "Population, total"},
-            {"id": "NY.GDP.PCAP.CD", "name": "GDP per capita"},
-            {"id": "NY.GDP.MKTP.CD", "name": "GDP"},
-        ],
+    app_module._metadata_cache.prime(
+        app_module.MetadataSnapshot(
+            countries=app_module._ensure_cache_valid().countries,
+            indicators=(
+                {"id": "SP.POP.TOTL", "name": "Population, total"},
+                {"id": "NY.GDP.PCAP.CD", "name": "GDP per capita"},
+                {"id": "NY.GDP.MKTP.CD", "name": "GDP"},
+            ),
+        )
     )
     response = client.get("/indicators", params={"search": "gdp", "limit": 1, "offset": 1})
     assert response.status_code == 200
@@ -149,13 +145,27 @@ def test_compare_data_limits_and_labels_countries_by_code(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(
-        app_module,
-        "_countries_cache",
-        [
-            {"id": "BRA", "iso2Code": "BR", "name": "Brazil", "region": "LAC", "capitalCity": "Brasilia"},
-            {"id": "USA", "iso2Code": "US", "name": "United States", "region": "North America", "capitalCity": "Washington"},
-        ],
+    current = app_module._ensure_cache_valid()
+    app_module._metadata_cache.prime(
+        app_module.MetadataSnapshot(
+            countries=(
+                {
+                    "id": "BRA",
+                    "iso2Code": "BR",
+                    "name": "Brazil",
+                    "region": "LAC",
+                    "capitalCity": "Brasilia",
+                },
+                {
+                    "id": "USA",
+                    "iso2Code": "US",
+                    "name": "United States",
+                    "region": "North America",
+                    "capitalCity": "Washington",
+                },
+            ),
+            indicators=current.indicators,
+        )
     )
     monkeypatch.setattr(
         app_module,
@@ -357,12 +367,12 @@ def test_metadata_failure_returns_503(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(app_module, "_cache_timestamp", None)
+    app_module._metadata_cache.clear()
 
-    def fail_refresh() -> None:
+    def fail_refresh() -> app_module.MetadataSnapshot:
         raise ValueError("upstream unavailable")
 
-    monkeypatch.setattr(app_module, "_refresh_caches", fail_refresh)
+    monkeypatch.setattr(app_module, "_load_metadata_snapshot", fail_refresh)
     response = client.get("/countries")
 
     assert response.status_code == 503
@@ -372,9 +382,7 @@ def test_metadata_failure_returns_503(
 def test_metadata_cache_refreshes_once_and_then_hits(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(app_module, "_countries_cache", None)
-    monkeypatch.setattr(app_module, "_indicators_cache", None)
-    monkeypatch.setattr(app_module, "_cache_timestamp", None)
+    app_module._metadata_cache.clear()
     calls = {"countries": 0, "indicators": 0}
 
     def countries_frame() -> pd.DataFrame:
@@ -390,7 +398,8 @@ def test_metadata_cache_refreshes_once_and_then_hits(
 
     monkeypatch.setattr(app_module, "get_countries_df", countries_frame)
     monkeypatch.setattr(app_module, "get_indicators_df", indicators_frame)
-    app_module._ensure_cache_valid()
-    app_module._ensure_cache_valid()
+    first = app_module._ensure_cache_valid()
+    second = app_module._ensure_cache_valid()
     assert calls == {"countries": 1, "indicators": 1}
-    assert app_module._countries_cache[0]["id"] == "BRA"
+    assert first is second
+    assert first.countries[0]["id"] == "BRA"

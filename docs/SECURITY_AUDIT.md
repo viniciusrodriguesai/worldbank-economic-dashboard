@@ -135,11 +135,15 @@ After dependency commit `25821ae`, pip-audit reported no known vulnerabilities a
 - **Component / surface:** Metadata cache and `/countries`/`/indicators`.
 - **Exploitation:** Once TTL expires, every request after a failed locked refresh retries
   the large metadata load; stale valid metadata is not deliberately served.
-- **Evidence:** One timestamp and lock, without stale-on-error or retry backoff.
+- **Evidence:** The former implementation used one timestamp and lock, without
+  stale-on-error or retry backoff.
 - **Impact:** Refresh storms and reduced availability during World Bank incidents.
 - **Remediation:** Tested cache abstraction with stale-on-error and bounded refresh retry.
-- **Status:** Deferred to the architecture phase after immediate security fixes.
-- **Tests:** Hit, expiry, refresh failure, concurrent access.
+- **Status:** Fixed. Metadata now uses a reusable thread-safe TTL cache, serves
+  valid stale data for at most six additional hours, backs off failed refreshes
+  for 60 seconds, and performs a single refresh under concurrent access.
+- **Tests:** Hit, expiry, bounded stale fallback, refresh failure/backoff,
+  invalid configuration, and concurrent single-flight access.
 
 ### SEC-009 — GitHub Actions use mutable major tags
 
