@@ -1,4 +1,5 @@
 import logging
+import os
 import requests
 import pandas as pd
 from statsmodels.tsa.arima.model import ARIMA
@@ -7,7 +8,7 @@ from statsmodels.tsa.arima.model import ARIMA
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-WB_API_BASE = "http://api.worldbank.org/v2"
+WB_API_BASE = os.getenv("WB_API_BASE", "https://api.worldbank.org/v2").rstrip("/")
 _session = requests.Session()
 _session.headers.update({"User-Agent": "worldbank-client/1.0"})
 _DEFAULT_TIMEOUT = 10  # segundos
