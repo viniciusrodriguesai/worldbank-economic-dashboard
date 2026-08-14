@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import CountrySelector from '../components/CountrySelector';
 import IndicatorSelector from '../components/IndicatorSelector';
 import LineChart from '../components/LineChart';
+import MapChart from '../components/MapChart';
 import ExportCSV from '../components/ExportCSV';
 import {
   fetchCountries,
@@ -157,6 +158,8 @@ export default function Dashboard() {
           isLoading={metadataLoading}
         />
       </div>
+
+      {country && <MapChart country={country} />}
 
       <div style={{ display: 'flex', gap: 16, marginBottom: 20 }}>
         <label>

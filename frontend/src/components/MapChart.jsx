@@ -1,5 +1,5 @@
-import React from 'react';
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import React, { useEffect } from 'react';
+import { MapContainer, Marker, Popup, TileLayer, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 
 // Coordenadas dos países (centro aproximado) — ISO 3166-1 alpha-2
@@ -252,12 +252,23 @@ const countryCoords = {
   ZW: [-19.015438, 29.154857]
 };
 
+function RecenterMap({ position }) {
+  const map = useMap();
+
+  useEffect(() => {
+    map.setView(position, 4);
+  }, [map, position]);
+
+  return null;
+}
+
 const MapChart = ({ country }) => {
-  const position = countryCoords[country?.value] || [0, 0];
+  const position = countryCoords[country?.iso2Code] || [0, 0];
 
   return (
     <div style={{ height: '400px', marginBottom: '20px' }}>
-      <MapContainer center={position} zoom={2} style={{ height: '100%', width: '100%' }}>
+      <MapContainer center={position} zoom={4} style={{ height: '100%', width: '100%' }}>
+        <RecenterMap position={position} />
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contribuidores'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
