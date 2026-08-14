@@ -8,21 +8,43 @@ const apiClient = axios.create({
   timeout: 20000,     // 20 seconds timeout
 });
 
+export function isRequestCanceled(error) {
+  return axios.isCancel(error) || error?.code === 'ERR_CANCELED';
+}
+
+export function getApiErrorMessage(error, fallback = 'Unable to complete the request.') {
+  const detail = error?.response?.data?.detail;
+
+  if (typeof detail === 'string') {
+    return detail;
+  }
+
+  if (Array.isArray(detail)) {
+    return detail.map(item => item.msg).filter(Boolean).join(' ');
+  }
+
+  if (error?.code === 'ECONNABORTED') {
+    return 'The request timed out. Please try again.';
+  }
+
+  return error?.message || fallback;
+}
+
 /**
  * Fetch the list of countries from the backend.
  * @returns {Promise<Array<{value: string, label: string}>>}
  */
-export async function fetchCountries() {
-  const res = await apiClient.get('/countries');
-  return res.data.map(c => ({ value: c.id, label: c.name }));
+export async function fetchCountries(signal) {
+  const res = await apiClient.get('/countries', { signal });
+  return res.data.map(c => ({ value: c.id, label: c.name, iso2Code: c.iso2Code }));
 }
 
 /**
  * Fetch the list of indicators from the backend.
  * @returns {Promise<Array<{value: string, label: string}>>}
  */
-export async function fetchIndicators() {
-  const res = await apiClient.get('/indicators');
+export async function fetchIndicators(signal) {
+  const res = await apiClient.get('/indicators', { signal });
   return res.data.map(i => ({ value: i.id, label: i.name }));
 }
 
@@ -34,9 +56,10 @@ export async function fetchIndicators() {
  * @param {number} endYear - End year for data.
  * @returns {Promise<Array<{year: number, value: number}>>}
  */
-export async function fetchData(countryCode, indicatorCode, startYear, endYear) {
+export async function fetchData(countryCode, indicatorCode, startYear, endYear, signal) {
   const res = await apiClient.get('/data', {
     params: { country: countryCode, indicator: indicatorCode, start: startYear, end: endYear },
+    signal,
   });
   return res.data;
 }
@@ -50,7 +73,14 @@ export async function fetchData(countryCode, indicatorCode, startYear, endYear) 
  * @param {number} yearsAhead - Number of years to forecast.
  * @returns {Promise<Array<{year: number, value: number}>>}
  */
-export async function fetchForecast(countryCode, indicatorCode, startYear, endYear, yearsAhead) {
+export async function fetchForecast(
+  countryCode,
+  indicatorCode,
+  startYear,
+  endYear,
+  yearsAhead,
+  signal,
+) {
   const res = await apiClient.get('/forecast', {
     params: {
       country: countryCode,
@@ -59,6 +89,7 @@ export async function fetchForecast(countryCode, indicatorCode, startYear, endYe
       end: endYear,
       years_ahead: yearsAhead,
     },
+    signal,
   });
   return res.data;
 }
