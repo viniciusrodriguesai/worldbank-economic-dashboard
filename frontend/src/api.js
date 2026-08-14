@@ -32,21 +32,13 @@ export async function fetchIndicators() {
  * @param {string} indicatorCode - World Bank indicator code.
  * @param {number} startYear - Start year for data.
  * @param {number} endYear - End year for data.
- * @returns {Promise<{status: number, data?: Array<{year: number, value: number}>}>}
+ * @returns {Promise<Array<{year: number, value: number}>>}
  */
 export async function fetchData(countryCode, indicatorCode, startYear, endYear) {
   const res = await apiClient.get('/data', {
     params: { country: countryCode, indicator: indicatorCode, start: startYear, end: endYear },
-    validateStatus: () => true, // allow handling of 400
   });
-
-  if (res.status === 200) {
-    return { status: 200, data: res.data };
-  }
-  if (res.status === 400) {
-    return { status: 400 };
-  }
-  throw new Error(`Unexpected status code: ${res.status}`);
+  return res.data;
 }
 
 /**
@@ -54,19 +46,11 @@ export async function fetchData(countryCode, indicatorCode, startYear, endYear) 
  * @param {string} countryCode - ISO code of the country.
  * @param {string} indicatorCode - World Bank indicator code.
  * @param {number} yearsAhead - Number of years to forecast.
- * @returns {Promise<{status: number, data?: Array<{year: number, forecast: number}>}>}
+ * @returns {Promise<Array<{year: number, value: number}>>}
  */
 export async function fetchForecast(countryCode, indicatorCode, yearsAhead) {
   const res = await apiClient.get('/forecast', {
     params: { country: countryCode, indicator: indicatorCode, years_ahead: yearsAhead },
-    validateStatus: () => true,
   });
-
-  if (res.status === 200) {
-    return { status: 200, data: res.data };
-  }
-  if (res.status === 400) {
-    return { status: 400 };
-  }
-  throw new Error(`Unexpected status code: ${res.status}`);
+  return res.data;
 }
