@@ -22,5 +22,15 @@ export default defineConfig({
     maxWorkers: 1,
     pool: 'threads',
     setupFiles: './src/test/setup.ts',
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'json-summary'],
+      thresholds: {
+        statements: 78,
+        branches: 65,
+        functions: 80,
+        lines: 80,
+      },
+    },
   },
 });
