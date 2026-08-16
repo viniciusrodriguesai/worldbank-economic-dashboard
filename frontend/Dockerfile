@@ -1,4 +1,4 @@
-FROM node:22.15.0-alpine@sha256:ad1aedbcc1b0575074a91ac146d6956476c1f9985994810e4ee02efd932a68fd AS build
+FROM node:26.7.0-alpine@sha256:aadf416b2cdce311a8811ba3f0608a61b77dbf997500e2eafe781b51f6a0b019 AS build
 
 WORKDIR /app
 COPY frontend/package.json frontend/package-lock.json ./
