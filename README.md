@@ -69,8 +69,8 @@ approximate; ARIMA intervals use the fitted model's 95% interval.
 See [forecasting methodology](docs/FORECASTING.md).
 
 For an independent evaluation of the selection procedure across historical origins,
-see [the offline nested backtesting protocol](docs/BACKTESTING.md). Its tests use
-synthetic series; real-data benchmark results are still pending.
+see [the offline nested backtesting protocol](docs/BACKTESTING.md). A [real Brazil GDP-growth benchmark](docs/BACKTEST_RESULTS.md) now includes a reproducible
+CSV snapshot, all outer predictions and comparisons with naive/drift baselines.
 
 ## Security and reliability
 
