@@ -68,6 +68,10 @@ Forecasts are estimates, not economic advice or observed facts. Baseline bands a
 approximate; ARIMA intervals use the fitted model's 95% interval.
 See [forecasting methodology](docs/FORECASTING.md).
 
+For an independent evaluation of the selection procedure across historical origins,
+see [the offline nested backtesting protocol](docs/BACKTESTING.md). Its tests use
+synthetic series; real-data benchmark results are still pending.
+
 ## Security and reliability
 
 - Strict country, indicator, period, pagination, and forecast bounds.
