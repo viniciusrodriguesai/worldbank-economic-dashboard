@@ -1,0 +1,383 @@
+{
+  "protocol": "nested-expanding-origin-v1",
+  "horizon": 3,
+  "minimum_train": 12,
+  "max_origins": 8,
+  "origin_count": 8,
+  "missing_years": [],
+  "modeled_start_year": 1961,
+  "aggregate_metrics": {
+    "selected": {
+      "mae": 2.441285289465173,
+      "rmse": 3.3520797156529536,
+      "mape": 161.43989667033213,
+      "smape": 113.4079385566575
+    },
+    "naive": {
+      "mae": 2.8207888666369345,
+      "rmse": 3.5481296267340845,
+      "mape": 216.94503823512483,
+      "smape": 121.89259643624182
+    },
+    "drift": {
+      "mae": 2.8412425245165474,
+      "rmse": 3.5836598117377974,
+      "mape": 215.4361641674315,
+      "smape": 122.89522116283865
+    }
+  },
+  "metrics_by_horizon": {
+    "1": {
+      "selected": {
+        "mae": 2.560315236704662,
+        "rmse": 3.677241608113031,
+        "mape": 113.48622782984678,
+        "smape": 105.98286947200494
+      },
+      "naive": {
+        "mae": 2.610785468151084,
+        "rmse": 3.6366637268334303,
+        "mape": 120.2188570409779,
+        "smape": 103.08070097083088
+      },
+      "drift": {
+        "mae": 2.61611363727654,
+        "rmse": 3.6622104306318946,
+        "mape": 119.3100654386812,
+        "smape": 102.91503531834854
+      }
+    },
+    "2": {
+      "selected": {
+        "mae": 2.7723541972437205,
+        "rmse": 3.4897171726749803,
+        "mape": 176.87682028183264,
+        "smape": 132.6242439896455
+      },
+      "naive": {
+        "mae": 3.1584255824496723,
+        "rmse": 3.632897576148786,
+        "mape": 233.46717721570846,
+        "smape": 141.49968377632712
+      },
+      "drift": {
+        "mae": 3.178833983171436,
+        "rmse": 3.673826866153043,
+        "mape": 232.14839703968647,
+        "smape": 142.58536681796704
+      }
+    },
+    "3": {
+      "selected": {
+        "mae": 1.9911864344471364,
+        "rmse": 2.830032415110398,
+        "mape": 193.956641899317,
+        "smape": 101.6167022083221
+      },
+      "naive": {
+        "mae": 2.693155549310047,
+        "rmse": 3.3681454368050567,
+        "mape": 297.14908044868815,
+        "smape": 121.0974045615674
+      },
+      "drift": {
+        "mae": 2.728779953101666,
+        "rmse": 3.408674795004185,
+        "mape": 294.8500300239269,
+        "smape": 123.18526135220037
+      }
+    }
+  },
+  "folds": [
+    {
+      "origin_year": 2015,
+      "training_points": 55,
+      "selected_model": "ARIMA(1, 1, 1)",
+      "inner_validation_points": 5,
+      "warnings": []
+    },
+    {
+      "origin_year": 2016,
+      "training_points": 56,
+      "selected_model": "ARIMA(0, 1, 1)",
+      "inner_validation_points": 5,
+      "warnings": []
+    },
+    {
+      "origin_year": 2017,
+      "training_points": 57,
+      "selected_model": "ARIMA(1, 0, 0)",
+      "inner_validation_points": 5,
+      "warnings": []
+    },
+    {
+      "origin_year": 2018,
+      "training_points": 58,
+      "selected_model": "ARIMA(1, 0, 0)",
+      "inner_validation_points": 5,
+      "warnings": []
+    },
+    {
+      "origin_year": 2019,
+      "training_points": 59,
+      "selected_model": "ARIMA(1, 1, 1)",
+      "inner_validation_points": 5,
+      "warnings": []
+    },
+    {
+      "origin_year": 2020,
+      "training_points": 60,
+      "selected_model": "drift",
+      "inner_validation_points": 5,
+      "warnings": [
+        "No evaluated ARIMA candidate outperformed the temporal baseline."
+      ]
+    },
+    {
+      "origin_year": 2021,
+      "training_points": 61,
+      "selected_model": "ARIMA(1, 1, 1)",
+      "inner_validation_points": 5,
+      "warnings": []
+    },
+    {
+      "origin_year": 2022,
+      "training_points": 62,
+      "selected_model": "ARIMA(0, 1, 1)",
+      "inner_validation_points": 5,
+      "warnings": []
+    }
+  ],
+  "predictions": [
+    {
+      "origin_year": 2015,
+      "horizon": 1,
+      "target_year": 2016,
+      "actual": 2.22222216259371,
+      "selected": 1.5472925352250793,
+      "naive": 1.66300602334775,
+      "drift": 1.6142016995253363
+    },
+    {
+      "origin_year": 2015,
+      "horizon": 2,
+      "target_year": 2017,
+      "actual": 2.797906720551,
+      "selected": 1.5267834300839034,
+      "naive": 1.66300602334775,
+      "drift": 1.565397375702923
+    },
+    {
+      "origin_year": 2015,
+      "horizon": 3,
+      "target_year": 2018,
+      "actual": 1.13569604599849,
+      "selected": 1.5231483880458836,
+      "naive": 1.66300602334775,
+      "drift": 1.5165930518805093
+    },
+    {
+      "origin_year": 2016,
+      "horizon": 1,
+      "target_year": 2017,
+      "actual": 2.797906720551,
+      "selected": 1.54612752060681,
+      "naive": 2.22222216259371,
+      "drift": 2.1844727562816306
+    },
+    {
+      "origin_year": 2016,
+      "horizon": 2,
+      "target_year": 2018,
+      "actual": 1.13569604599849,
+      "selected": 1.54612752060681,
+      "naive": 2.22222216259371,
+      "drift": 2.146723349969551
+    },
+    {
+      "origin_year": 2016,
+      "horizon": 3,
+      "target_year": 2019,
+      "actual": 0.977734697038784,
+      "selected": 1.54612752060681,
+      "naive": 2.22222216259371,
+      "drift": 2.1089739436574715
+    },
+    {
+      "origin_year": 2017,
+      "horizon": 1,
+      "target_year": 2018,
+      "actual": 1.13569604599849,
+      "selected": 2.5234389306784384,
+      "naive": 2.797906720551,
+      "drift": 2.771111492172302
+    },
+    {
+      "origin_year": 2017,
+      "horizon": 2,
+      "target_year": 2019,
+      "actual": 0.977734697038784,
+      "selected": 2.4405036384603194,
+      "naive": 2.797906720551,
+      "drift": 2.7443162637936043
+    },
+    {
+      "origin_year": 2017,
+      "horizon": 3,
+      "target_year": 2020,
+      "actual": -4.13191443239947,
+      "selected": 2.41544327455205,
+      "naive": 2.797906720551,
+      "drift": 2.717521035414906
+    },
+    {
+      "origin_year": 2018,
+      "horizon": 1,
+      "target_year": 2019,
+      "actual": 0.977734697038784,
+      "selected": 1.9991611459191072,
+      "naive": 1.13569604599849,
+      "drift": 1.080209318564111
+    },
+    {
+      "origin_year": 2018,
+      "horizon": 2,
+      "target_year": 2020,
+      "actual": -4.13191443239947,
+      "selected": 2.258513054042252,
+      "naive": 1.13569604599849,
+      "drift": 1.0247225911297324
+    },
+    {
+      "origin_year": 2018,
+      "horizon": 3,
+      "target_year": 2021,
+      "actual": 3.90999994204108,
+      "selected": 2.336412452933186,
+      "naive": 1.13569604599849,
+      "drift": 0.9692358636953535
+    },
+    {
+      "origin_year": 2019,
+      "horizon": 1,
+      "target_year": 2020,
+      "actual": -4.13191443239947,
+      "selected": 1.469105741885698,
+      "naive": 0.977734697038784,
+      "drift": 0.920481165785003
+    },
+    {
+      "origin_year": 2019,
+      "horizon": 2,
+      "target_year": 2021,
+      "actual": 3.90999994204108,
+      "selected": 1.558245492303476,
+      "naive": 0.977734697038784,
+      "drift": 0.8632276345312221
+    },
+    {
+      "origin_year": 2019,
+      "horizon": 3,
+      "target_year": 2022,
+      "actual": 1.8092581243061,
+      "selected": 1.5744163578599097,
+      "naive": 0.977734697038784,
+      "drift": 0.8059741032774411
+    },
+    {
+      "origin_year": 2020,
+      "horizon": 1,
+      "target_year": 2021,
+      "actual": 3.90999994204108,
+      "selected": -4.274801787351293,
+      "naive": -4.13191443239947,
+      "drift": -4.274801787351293
+    },
+    {
+      "origin_year": 2020,
+      "horizon": 2,
+      "target_year": 2022,
+      "actual": 1.8092581243061,
+      "selected": -4.417689142303116,
+      "naive": -4.13191443239947,
+      "drift": -4.417689142303116
+    },
+    {
+      "origin_year": 2020,
+      "horizon": 3,
+      "target_year": 2023,
+      "actual": -0.869647578573321,
+      "selected": -4.560576497254939,
+      "naive": -4.13191443239947,
+      "drift": -4.560576497254939
+    },
+    {
+      "origin_year": 2021,
+      "horizon": 1,
+      "target_year": 2022,
+      "actual": 1.8092581243061,
+      "selected": 1.6378261706873376,
+      "naive": 3.90999994204108,
+      "drift": 3.9035259492457963
+    },
+    {
+      "origin_year": 2021,
+      "horizon": 2,
+      "target_year": 2023,
+      "actual": -0.869647578573321,
+      "selected": 1.3801388959360004,
+      "naive": 3.90999994204108,
+      "drift": 3.8970519564505133
+    },
+    {
+      "origin_year": 2021,
+      "horizon": 3,
+      "target_year": 2024,
+      "actual": -0.495851897260366,
+      "selected": 1.3509145767373816,
+      "naive": 3.90999994204108,
+      "drift": 3.89057796365523
+    },
+    {
+      "origin_year": 2022,
+      "horizon": 1,
+      "target_year": 2023,
+      "actual": -0.869647578573321,
+      "selected": 1.3197422968945824,
+      "naive": 1.8092581243061,
+      "drift": 1.7684518720855755
+    },
+    {
+      "origin_year": 2022,
+      "horizon": 2,
+      "target_year": 2024,
+      "actual": -0.495851897260366,
+      "selected": 1.3197422968945824,
+      "naive": 1.8092581243061,
+      "drift": 1.7276456198650514
+    },
+    {
+      "origin_year": 2022,
+      "horizon": 3,
+      "target_year": 2025,
+      "actual": 0.239578342117881,
+      "selected": 1.3197422968945824,
+      "naive": 1.8092581243061,
+      "drift": 1.686839367644527
+    }
+  ],
+  "data_sha256": "5326271cb24a3ad0fb8d505fe4f790c7d0d58ee9d8f267d90573e9cdb99e3371",
+  "python": "3.12.14",
+  "versions": {
+    "numpy": "2.2.4",
+    "pandas": "2.2.3",
+    "scipy": "1.17.1",
+    "statsmodels": "0.14.4"
+  },
+  "source_commit": "d84a0c47037bdeb6924b1b79c799fcb7ef43312f",
+  "source_sha256": {
+    "scripts/evaluate_forecasts.py": "8dcd4c6c1b79c0f22b4e1f4bb19411387d338920869e2ab9791871242610c239",
+    "backend/services/backtesting.py": "c22b84c9296a27e84a9c2ded6b1dc9c2e53a0f23f3f7edd9447e74f3404c7245",
+    "backend/services/forecasting.py": "b81ff2d93eb0bb8e528170fe3c0f368124b624904598698ef786933f6a2da13a"
+  }
+}
