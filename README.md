@@ -8,6 +8,7 @@ bounded annual forecasts without presenting estimates as facts.
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 Deployment status: **deploy-ready, not publicly deployed**. No live-demo URL is claimed.
+See the [Render demo deployment guide](docs/RENDER_DEMO.md) and root blueprint.
 
 ## Why it is useful
 
