@@ -182,3 +182,7 @@ Pytest enforces 85% backend coverage. Vitest enforces 78% statements, 65% branch
 
 MIT. World Bank data and OpenStreetMap tiles remain subject to their respective terms
 and attribution requirements.
+
+### Expanded temporal evaluation
+
+See the [six-series backtest](docs/EXPANDED_BACKTEST_RESULTS.md) for Brazil, US and Germany GDP growth/inflation, including every prediction, baseline and current-vintage limitation.
